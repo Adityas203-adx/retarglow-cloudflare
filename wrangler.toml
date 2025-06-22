@@ -1,25 +1,9 @@
 name = "retarglow"
 compatibility_date = "2024-06-01"
 
-# Routes
-[[routes]]
-pattern = "https://retarglow.com/pixel"
-script = "pixel"
-
-[[routes]]
-pattern = "https://retarglow.com/log"
-script = "log"
-
-[[routes]]
-pattern = "https://retarglow.com/serve"
-script = "serve"
-
-[[routes]]
-pattern = "https://retarglow.com/r"
-script = "redirect"
-
-# Node-style support
-node_compat = true
+[vars]
+SUPABASE_URL = "https://nandqoilqwsepborxkrz.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg"
 
 [build]
-command = "npm install"
+command = "echo Build complete"

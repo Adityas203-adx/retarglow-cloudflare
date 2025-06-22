@@ -1,0 +1,14 @@
+{
+  "name": "retarglow-worker",
+  "version": "1.0.0",
+  "main": "functions/pixel.js",
+  "type": "module",
+  "scripts": {
+    "start": "wrangler dev",
+    "deploy": "wrangler publish"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.5",
+    "node-fetch": "^3.3.2"
+  }
+}

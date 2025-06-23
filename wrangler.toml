@@ -1,8 +1,9 @@
-name = "retarglow"
+name = "log"
+main = "functions/log.js"
 account_id = "c0aee4b4132b43c68bc0c5b28aabc4b7"
 compatibility_date = "2025-06-01"
 workers_dev = false
 
 routes = [
-  { pattern = "retarglow.com/log", script = "log", zone_name = "retarglow.com" }
+  { pattern = "retarglow.com/log", zone_name = "retarglow.com" }
 ]

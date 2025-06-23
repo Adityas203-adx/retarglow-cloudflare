@@ -1,3 +1,4 @@
+pages_build_output_dir = "."
 name = "retarglow"
 compatibility_date = "2024-06-01"
 compatibility_flags = ["nodejs_compat"]

@@ -1,5 +1,5 @@
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request) {
     const url = new URL(request.url);
     const cid = url.searchParams.get("id") || "default-campaign";
 
@@ -57,7 +57,7 @@ export default {
     addEventListener("message",(e)=>{if(e.data?.from==="retarglow"){fetch("https://retarglow.com/log",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...e.data,type:"cross-frame"})});}});
   } catch(e){}
 })();
-    `;
+`;
 
     return new Response(`eval(atob('${btoa(pixelScript)}'))`, {
       headers: {

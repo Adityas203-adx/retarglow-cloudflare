@@ -2,8 +2,15 @@ name = "retarglow"
 type = "javascript"
 account_id = "c0aee4b4132b43c68bc0c5b28aabc4b7"
 compatibility_date = "2025-06-01"
+workers_dev = false
 
-# Each function route
+# Remove any deprecated site.entry-point
+# main is not required for multi-script Workers
+# Do NOT include site.entry-point
+
+# Replace this with your actual Cloudflare zone name
+zone_name = "retarglow.com"
+
 [[routes]]
 pattern = "https://retarglow.com/log"
 script = "log"

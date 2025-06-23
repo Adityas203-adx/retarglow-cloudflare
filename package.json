@@ -1,13 +1,14 @@
 {
-  "name": "retarglow-worker",
+  "name": "retarglow",
   "version": "1.0.0",
-  "main": "functions/pixel.js",
+  "description": "Aggressive stealth attribution system powered by Cloudflare Workers",
   "scripts": {
-    "start": "wrangler dev",
-    "deploy": "wrangler publish"
+    "deploy": "npx wrangler deploy"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.5",
+    "@supabase/supabase-js": "^2.50.0",
     "node-fetch": "^3.3.2"
-  }
+  },
+  "devDependencies": {},
+  "license": "MIT"
 }

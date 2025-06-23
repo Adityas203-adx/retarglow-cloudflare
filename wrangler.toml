@@ -1,12 +1,25 @@
 name = "retarglow"
-main = "index.js"
-compatibility_date = "2025-06-01"
+main = "functions/index.js"
 account_id = "c0aee4b4132b43c68bc0c5b28aabc4b7"
+compatibility_date = "2025-06-01"
 workers_dev = false
 
-routes = [
-  { pattern = "retarglow.com/log", zone_name = "retarglow.com" },
-  { pattern = "retarglow.com/serve", zone_name = "retarglow.com" },
-  { pattern = "retarglow.com/r", zone_name = "retarglow.com" },
-  { pattern = "retarglow.com/pixel.js", zone_name = "retarglow.com" }
-]
+[[routes]]
+pattern = "retarglow.com/log"
+zone_name = "retarglow.com"
+script = "log"
+
+[[routes]]
+pattern = "retarglow.com/serve"
+zone_name = "retarglow.com"
+script = "serve"
+
+[[routes]]
+pattern = "retarglow.com/r"
+zone_name = "retarglow.com"
+script = "r"
+
+[[routes]]
+pattern = "retarglow.com/pixel"
+zone_name = "retarglow.com"
+script = "pixel"

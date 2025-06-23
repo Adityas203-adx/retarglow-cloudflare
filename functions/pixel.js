@@ -1,11 +1,7 @@
-exports.handler = async (event) => {
-  const headers = {
-    "Content-Type": "application/javascript",
-    "Access-Control-Allow-Origin": "*"
-  };
-
-  try {
-    const cid = event.pathParameters?.id || "default-campaign";
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    const cid = url.searchParams.get("id") || "default-campaign";
 
     const pixelScript = `
 (function(){
@@ -60,22 +56,14 @@ exports.handler = async (event) => {
     }
     addEventListener("message",(e)=>{if(e.data?.from==="retarglow"){fetch("https://retarglow.com/log",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...e.data,type:"cross-frame"})});}});
   } catch(e){}
-})();`;
+})();
+    `;
 
-    const encoded = Buffer.from(pixelScript).toString("base64");
-    const stealth = `eval(atob('${encoded}'))`;
-
-    return {
-      statusCode: 200,
-      headers,
-      body: stealth
-    };
-
-  } catch (err) {
-    return {
-      statusCode: 500,
-      headers,
-      body: `console.error("Pixel error:", ${JSON.stringify(err.message)});`
-    };
+    return new Response(`eval(atob('${btoa(pixelScript)}'))`, {
+      headers: {
+        "Content-Type": "application/javascript",
+        "Access-Control-Allow-Origin": "*"
+      }
+    });
   }
 };

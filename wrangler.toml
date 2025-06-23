@@ -9,7 +9,7 @@ workers_dev = false
 # Do NOT include site.entry-point
 
 # Replace this with your actual Cloudflare zone name
-zone_name = "retarglow.com"
+zone_id = "d8e673335f1dea6370c81219751009ac"
 
 [[routes]]
 pattern = "https://retarglow.com/log"

@@ -1,23 +1,21 @@
 name = "retarglow"
+type = "javascript"
 account_id = "c0aee4b4132b43c68bc0c5b28aabc4b7"
-compatibility_date = "2024-06-01"
-workers_dev = false
-main = "functions/placeholder.js"
+compatibility_date = "2025-06-01"
 
-routes = [
-  { pattern = "retarglow.com/log", script = "log" },
-  { pattern = "retarglow.com/serve", script = "serve" },
-  { pattern = "retarglow.com/r", script = "r" },
-  { pattern = "retarglow.com/pixel.js", script = "pixel" }
-]
+# Each function route
+[[routes]]
+pattern = "https://retarglow.com/log"
+script = "log"
 
-[build]
-command = ""
+[[routes]]
+pattern = "https://retarglow.com/serve"
+script = "serve"
 
-[site]
-bucket = "./public"
-entry-point = "functions"
+[[routes]]
+pattern = "https://retarglow.com/r"
+script = "r"
 
-[vars]
-SUPABASE_URL = "https://nandqoilqwsepborxkrz.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg"
+[[routes]]
+pattern = "https://retarglow.com/pixel.js"
+script = "pixel"

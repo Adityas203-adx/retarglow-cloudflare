@@ -1,14 +1,9 @@
-name = "retarglow"
-main = "functions/"  # If there's no index.js, you can remove this line
 compatibility_date = "2025-06-01"
+workers_dev = false
 
 routes = [
-  { pattern = "retarglow.com/log", script = "log" },
-  { pattern = "retarglow.com/serve", script = "serve" },
-  { pattern = "retarglow.com/r", script = "r" },
-  { pattern = "retarglow.com/pixel.js", script = "pixel" }
+  { pattern = "https://retarglow.com/log", script = "log" },
+  { pattern = "https://retarglow.com/serve", script = "serve" },
+  { pattern = "https://retarglow.com/r", script = "r" },
+  { pattern = "https://retarglow.com/pixel.js", script = "pixel" }
 ]
-
-# Remove any of the following if they exist and are causing issues:
-# type = "javascript"
-# zone_name = "retarglow.com"

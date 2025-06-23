@@ -1,7 +1,14 @@
 name = "retarglow"
-main = "functions/pixel.js"
-compatibility_date = "2024-06-01"
+main = "functions/pixel.js"  # If there's no index.js, you can remove this line
+compatibility_date = "2025-06-01"
 
-[[routes]]
-pattern = "https://retarglow.com/pixel"
-custom_domain = true
+routes = [
+  { pattern = "retarglow.com/log", script = "log" },
+  { pattern = "retarglow.com/serve", script = "serve" },
+  { pattern = "retarglow.com/r", script = "r" },
+  { pattern = "retarglow.com/pixel.js", script = "pixel" }
+]
+
+# Remove any of the following if they exist and are causing issues:
+# type = "javascript"
+# zone_name = "retarglow.com"

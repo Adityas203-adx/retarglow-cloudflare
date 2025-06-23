@@ -1,9 +1,12 @@
-name = "log"
-main = "functions/log.js"
-account_id = "c0aee4b4132b43c68bc0c5b28aabc4b7"
+name = "retarglow"
+main = "index.js"
 compatibility_date = "2025-06-01"
+account_id = "c0aee4b4132b43c68bc0c5b28aabc4b7"
 workers_dev = false
 
 routes = [
-  { pattern = "retarglow.com/log", zone_name = "retarglow.com" }
+  { pattern = "retarglow.com/log", zone_name = "retarglow.com" },
+  { pattern = "retarglow.com/serve", zone_name = "retarglow.com" },
+  { pattern = "retarglow.com/r", zone_name = "retarglow.com" },
+  { pattern = "retarglow.com/pixel.js", zone_name = "retarglow.com" }
 ]

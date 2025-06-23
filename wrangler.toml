@@ -1,9 +1,11 @@
 name = "retarglow"
 compatibility_date = "2024-06-01"
-node_compat = true
-pages_build_output_dir = "./"  # Important for Pages deploy
+compatibility_flags = ["nodejs_compat"]
+
+# DO NOT use `main` or `site.entry-point` for Pages + Functions
+
+[build]
+command = "echo 'Build complete'"  # No actual build, only functions
 
 [site]
-entry-point = "."
-
-# No [routes] section needed for Cloudflare Pages + Functions
+bucket = "./"  # This prevents bucket error, even though we use no assets

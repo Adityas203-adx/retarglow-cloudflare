@@ -1,14 +1,10 @@
-name = "retarglow"
-main = "functions/pixel.js"  # If there's no index.js, you can remove this line
+account_id = "c0aee4b4132b43c68bc0c5b28aabc4b7"
 compatibility_date = "2025-06-01"
+workers_dev = false
 
 routes = [
-  { pattern = "retarglow.com/log", script = "log" },
-  { pattern = "retarglow.com/serve", script = "serve" },
-  { pattern = "retarglow.com/r", script = "r" },
-  { pattern = "retarglow.com/pixel.js", script = "pixel" }
+  { pattern = "retarglow.com/log", script = "log", zone_name = "retarglow.com" },
+  { pattern = "retarglow.com/serve", script = "serve", zone_name = "retarglow.com" },
+  { pattern = "retarglow.com/r", script = "r", zone_name = "retarglow.com" },
+  { pattern = "retarglow.com/pixel.js", script = "pixel", zone_name = "retarglow.com" }
 ]
-
-# Remove any of the following if they exist and are causing issues:
-# type = "javascript"
-# zone_name = "retarglow.com"

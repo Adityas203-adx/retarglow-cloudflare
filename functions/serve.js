@@ -6,7 +6,7 @@ const supabase = createClient(
 );
 
 export default {
-  async fetch(req, env, ctx) {
+  async fetch(req) {
     const headers = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -19,10 +19,7 @@ export default {
     }
 
     if (req.method !== "POST") {
-      return new Response("Method Not Allowed", {
-        status: 405,
-        headers
-      });
+      return new Response("Method Not Allowed", { status: 405, headers });
     }
 
     try {
@@ -35,7 +32,7 @@ export default {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (error || !data || !data.length) {
+      if (error || !data) {
         return new Response(JSON.stringify({ ad_url: null }), {
           status: 200,
           headers
@@ -43,12 +40,9 @@ export default {
       }
 
       let selected = null;
+
       for (const row of data) {
-        if (row.status !== "active") continue;
-
-        // TEMP: Ignoring country targeting during testing
-        // Additional logic (like audience_rules/referrer_override) can be added here
-
+        if (row.status !== true) continue; // ✅ Match boolean true
         selected = row;
         break;
       }
@@ -60,7 +54,7 @@ export default {
         });
       }
 
-      const adUrl = selected.ad_url?.replace("{{_r}}", encodeURIComponent(_r));
+      const adUrl = selected.ad_url.replace("{{_r}}", encodeURIComponent(_r));
       return new Response(JSON.stringify({ ad_url: adUrl }), {
         status: 200,
         headers

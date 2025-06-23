@@ -4,8 +4,5 @@ compatibility_date = "2025-06-01"
 workers_dev = false
 
 routes = [
-  { pattern = "retarglow.com/log", script = "log", zone_name = "retarglow.com" },
-  { pattern = "retarglow.com/serve", script = "serve", zone_name = "retarglow.com" },
-  { pattern = "retarglow.com/r", script = "r", zone_name = "retarglow.com" },
-  { pattern = "retarglow.com/pixel.js", script = "pixel", zone_name = "retarglow.com" }
+  { pattern = "retarglow.com/log", script = "log", zone_name = "retarglow.com" }
 ]

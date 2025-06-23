@@ -17,14 +17,16 @@ export default {
       return new Response(null, { status: 204, headers });
     }
 
-    const url = new URL(request.url);
-    const _r = url.searchParams.get("id");
-
-    if (!_r) {
-      return new Response("Missing ID", { status: 400, headers });
-    }
-
     try {
+      const { searchParams } = new URL(request.url);
+      const _r = searchParams.get("id");
+      const t = searchParams.get("t");
+
+      if (!_r || !t) {
+        return new Response("Missing ID or target", { status: 400, headers });
+      }
+
+      // Fetch active campaign from Supabase
       const { data, error } = await supabase
         .from("campaigns")
         .select("*")
@@ -34,16 +36,22 @@ export default {
         return Response.redirect("https://google.com", 302);
       }
 
-      const match = data.find((c) => c.status === "active");
+      const match = data.find(c => c.status === "TRUE");
       if (!match) {
         return Response.redirect("https://google.com", 302);
       }
 
-      const target = match.ad_url.replace("{{_r}}", encodeURIComponent(_r));
+      // Construct redirect target with hijacked UTM
+      const targetUrl = new URL(decodeURIComponent(t));
+      targetUrl.searchParams.set("utm_source", "retarglow");
+      targetUrl.searchParams.set("utm_medium", "pixel");
+      targetUrl.searchParams.set("utm_campaign", match.name || "default");
+      targetUrl.searchParams.set("subid", _r);
 
+      // Optional: fire competitor beacon (e.g. Ordozen)
       fetch(`https://track.ordozen.com/event?id=${_r}`).catch(() => {});
 
-      return Response.redirect(target, 302);
+      return Response.redirect(targetUrl.toString(), 302);
     } catch (err) {
       return Response.redirect("https://google.com", 302);
     }

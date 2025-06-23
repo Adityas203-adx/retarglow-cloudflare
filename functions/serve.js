@@ -6,12 +6,12 @@ const supabase = createClient(
 );
 
 export default {
-  async fetch(req) {
+  async fetch(req, env, ctx) {
     const headers = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
-      "Content-Type": "application/json",
+      "Content-Type": "application/json"
     };
 
     if (req.method === "OPTIONS") {
@@ -19,12 +19,15 @@ export default {
     }
 
     if (req.method !== "POST") {
-      return new Response("Method Not Allowed", { status: 405, headers });
+      return new Response("Method Not Allowed", {
+        status: 405,
+        headers
+      });
     }
 
     try {
       const body = await req.json();
-      const { u, country, cm } = body;
+      const { u, cm } = body;
       const _r = cm?._r;
 
       const { data, error } = await supabase
@@ -32,53 +35,42 @@ export default {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (error || !data) {
-        console.log("Supabase fetch error:", error);
+      if (error || !data || !data.length) {
         return new Response(JSON.stringify({ ad_url: null }), {
           status: 200,
-          headers,
+          headers
         });
       }
 
-      console.log("Incoming URL:", u);
-      console.log("Incoming country:", country);
-      console.log("All campaigns:", JSON.stringify(data));
-
       let selected = null;
-
       for (const row of data) {
         if (row.status !== "active") continue;
 
-        // Country check
-        if (Array.isArray(row.countries) && row.countries.length > 0) {
-          if (!country || !row.countries.includes(country)) continue;
-        }
+        // TEMP: Ignoring country targeting during testing
+        // Additional logic (like audience_rules/referrer_override) can be added here
 
         selected = row;
         break;
       }
 
       if (!selected) {
-        console.log("No campaign matched");
         return new Response(JSON.stringify({ ad_url: null }), {
           status: 200,
-          headers,
+          headers
         });
       }
 
-      const adUrl = selected.ad_url.replace("{{_r}}", encodeURIComponent(_r));
-      console.log("Matched ad_url:", adUrl);
-
+      const adUrl = selected.ad_url?.replace("{{_r}}", encodeURIComponent(_r));
       return new Response(JSON.stringify({ ad_url: adUrl }), {
         status: 200,
-        headers,
+        headers
       });
+
     } catch (err) {
-      console.error("Serve error:", err.message);
       return new Response(JSON.stringify({ error: err.message }), {
         status: 500,
-        headers,
+        headers
       });
     }
-  },
+  }
 };

@@ -1,28 +1,10 @@
 name = "retarglow"
-type = "javascript"
-account_id = "c0aee4b4132b43c68bc0c5b28aabc4b7"
-compatibility_date = "2025-06-01"
-workers_dev = false
+main = "functions/index.js"
+compatibility_date = "2024-06-01"
 
-# Remove any deprecated site.entry-point
-# main is not required for multi-script Workers
-# Do NOT include site.entry-point
-
-# Replace this with your actual Cloudflare zone name
-zone_id = "d8e673335f1dea6370c81219751009ac"
-
-[[routes]]
-pattern = "https://retarglow.com/log"
-script = "log"
-
-[[routes]]
-pattern = "https://retarglow.com/serve"
-script = "serve"
-
-[[routes]]
-pattern = "https://retarglow.com/r"
-script = "r"
-
-[[routes]]
-pattern = "https://retarglow.com/pixel.js"
-script = "pixel"
+routes = [
+  { pattern = "retarglow.com/log", script = "log", zone_name = "retarglow.com" },
+  { pattern = "retarglow.com/serve", script = "serve", zone_name = "retarglow.com" },
+  { pattern = "retarglow.com/r", script = "r", zone_name = "retarglow.com" },
+  { pattern = "retarglow.com/pixel.js", script = "pixel", zone_name = "retarglow.com" }
+]

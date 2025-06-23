@@ -1,12 +1,12 @@
 export default {
   async fetch(request, env, ctx) {
-    const url = new URL(request.url);
     const headers = {
       "Content-Type": "application/javascript",
       "Access-Control-Allow-Origin": "*"
     };
 
     try {
+      const url = new URL(request.url);
       const cid = url.pathname.split("/").pop() || "default-campaign";
 
       const pixelScript = `

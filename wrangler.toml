@@ -1,9 +1,7 @@
-compatibility_date = "2025-06-01"
-workers_dev = false
+name = "retarglow"
+main = "functions/pixel.js"
+compatibility_date = "2024-06-01"
 
-routes = [
-  { pattern = "https://retarglow.com/log", script = "log" },
-  { pattern = "https://retarglow.com/serve", script = "serve" },
-  { pattern = "https://retarglow.com/r", script = "r" },
-  { pattern = "https://retarglow.com/pixel.js", script = "pixel" }
-]
+[[routes]]
+pattern = "https://retarglow.com/pixel"
+custom_domain = true

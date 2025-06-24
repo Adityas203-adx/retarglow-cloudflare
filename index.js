@@ -1,4 +1,3 @@
-// Unified Worker Entry: index.js
 import log from "./functions/log.js";
 import serve from "./functions/serve.js";
 import r from "./functions/r.js";
@@ -9,14 +8,13 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // Fixed route handlers
     if (path === "/log") return log.fetch(request, env, ctx);
     if (path === "/serve") return serve.fetch(request, env, ctx);
-    if (path === "/r") return r.fetch(request, env, ctx);
 
-    // Handle both /pixel and /pixel.js
-    if (path === "/pixel" || path === "/pixel.js") {
-      return pixel.fetch(request, env, ctx);
-    }
+    // Dynamic campaign handlers
+    if (path.startsWith("/pixel")) return pixel.fetch(request, env, ctx);
+    if (path.startsWith("/r")) return r.fetch(request, env, ctx);
 
     return new Response("Not found", { status: 404 });
   },

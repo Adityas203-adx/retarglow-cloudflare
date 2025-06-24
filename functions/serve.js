@@ -2,11 +2,11 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
   "https://nandqoilqwsepborxkrz.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg" // keep your real anon key here
 );
 
 export default {
-  async fetch(req, env, ctx) {
+  async fetch(req) {
     const headers = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -24,15 +24,17 @@ export default {
 
     try {
       const body = await req.json();
-      const { u, cm, cid = "default" } = body;
+      const { u, cm } = body;
       const _r = cm?._r || "";
+
+      const hostname = new URL(u).hostname;
 
       const { data, error } = await supabase
         .from("campaigns")
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (error || !data) {
+      if (error || !data?.length) {
         return new Response(JSON.stringify({ ad_url: null }), { status: 200, headers });
       }
 
@@ -40,8 +42,8 @@ export default {
       for (const row of data) {
         if (row.status !== true) continue;
 
-        if (row.audience_rules?.cid && row.audience_rules.cid !== cid) continue;
-        if (row.audience_rules?.domain && !u.includes(row.audience_rules.domain)) continue;
+        const domainRule = row.audience_rules?.domain;
+        if (domainRule && !hostname.includes(domainRule)) continue;
 
         selected = row;
         break;

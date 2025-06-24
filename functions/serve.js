@@ -1,12 +1,13 @@
+// serve.js
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
   "https://nandqoilqwsepborxkrz.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg" // keep your real anon key here
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg"
 );
 
 export default {
-  async fetch(req) {
+  async fetch(req, env, ctx) {
     const headers = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -27,23 +28,46 @@ export default {
       const { u, cm } = body;
       const _r = cm?._r || "";
 
-      const hostname = new URL(u).hostname;
-
       const { data, error } = await supabase
         .from("campaigns")
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (error || !data?.length) {
+      if (error || !data) {
         return new Response(JSON.stringify({ ad_url: null }), { status: 200, headers });
       }
 
+      // Parse rules if stored as strings
+      data.forEach(row => {
+        if (typeof row.audience_rules === 'string') {
+          try {
+            row.audience_rules = JSON.parse(row.audience_rules);
+          } catch (e) {
+            row.audience_rules = {};
+          }
+        }
+      });
+
+      // Normalize domain hostname for loose matching
+      const normalize = url => {
+        try {
+          return new URL(url).hostname.replace(/^www\./, "");
+        } catch {
+          return null;
+        }
+      };
+
+      const currentDomain = normalize(u);
       let selected = null;
+
       for (const row of data) {
-        if (row.status !== true) continue;
+        if (!row.status) continue;
 
         const domainRule = row.audience_rules?.domain;
-        if (domainRule && !hostname.includes(domainRule)) continue;
+        if (domainRule) {
+          const ruleDomain = normalize(domainRule);
+          if (!ruleDomain || ruleDomain !== currentDomain) continue;
+        }
 
         selected = row;
         break;

@@ -6,7 +6,7 @@ const supabase = createClient(
 );
 
 export default {
-  async fetch(req) {
+  async fetch(req, env, ctx) {
     const headers = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -14,23 +14,51 @@ export default {
       "Content-Type": "application/json"
     };
 
-    if (req.method === "OPTIONS") return new Response(null, { status: 204, headers });
-    if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405, headers });
+    if (req.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers });
+    }
+
+    if (req.method !== "POST") {
+      return new Response("Method Not Allowed", { status: 405, headers });
+    }
 
     try {
-      const { u, cm } = await req.json();
+      const body = await req.json();
+      const { u, cm, cid = "default" } = body;
       const _r = cm?._r || "";
 
-      const { data } = await supabase.from("campaigns").select("*").order("created_at", { ascending: false });
-      const selected = data.find(row => row.status === true && (!row.audience_rules?.domain || u.startsWith(row.audience_rules.domain)));
+      const { data, error } = await supabase
+        .from("campaigns")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-      if (!selected) return new Response(JSON.stringify({ ad_url: null }), { status: 200, headers });
+      if (error || !data) {
+        return new Response(JSON.stringify({ ad_url: null }), { status: 200, headers });
+      }
+
+      let selected = null;
+      for (const row of data) {
+        if (row.status !== true) continue;
+
+        if (row.audience_rules?.cid && row.audience_rules.cid !== cid) continue;
+        if (row.audience_rules?.domain && !u.includes(row.audience_rules.domain)) continue;
+
+        selected = row;
+        break;
+      }
+
+      if (!selected) {
+        return new Response(JSON.stringify({ ad_url: null }), { status: 200, headers });
+      }
 
       const finalUrl = selected.ad_url.replace("{{_r}}", encodeURIComponent(_r));
       return new Response(JSON.stringify({ ad_url: finalUrl }), { status: 200, headers });
 
     } catch (err) {
-      return new Response(JSON.stringify({ error: err.message }), { status: 500, headers });
+      return new Response(JSON.stringify({ error: err.message }), {
+        status: 500,
+        headers
+      });
     }
   }
 };

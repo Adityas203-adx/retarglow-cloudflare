@@ -13,30 +13,43 @@ export default {
       "Access-Control-Allow-Headers": "Content-Type"
     };
 
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
-
-    const { searchParams } = new URL(request.url);
-    const _r = searchParams.get("id");
-    const t = searchParams.get("t");
-
-    if (!_r || !t) return new Response("Missing ID or target", { status: 400, headers });
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers });
+    }
 
     try {
-      const { data } = await supabase.from("campaigns").select("*").order("created_at", { ascending: false });
+      const { searchParams } = new URL(request.url);
+      const _r = searchParams.get("id");
+      const t = searchParams.get("t");
+
+      if (!_r || !t) {
+        return new Response("Missing ID or target", { status: 400, headers });
+      }
+
+      const { data, error } = await supabase
+        .from("campaigns")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error || !data?.length) {
+        return Response.redirect("https://google.com", 302);
+      }
+
       const match = data.find(c => c.status === true);
+      if (!match) {
+        return Response.redirect("https://google.com", 302);
+      }
 
-      if (!match) return Response.redirect("https://google.com", 302);
-
-      const target = new URL(decodeURIComponent(t));
-      target.searchParams.set("utm_source", "retarglow");
-      target.searchParams.set("utm_medium", "pixel");
-      target.searchParams.set("utm_campaign", match.name || "retarglow");
-      target.searchParams.set("subid", _r);
+      const targetUrl = new URL(decodeURIComponent(t));
+      targetUrl.searchParams.set("utm_source", "retarglow");
+      targetUrl.searchParams.set("utm_medium", "pixel");
+      targetUrl.searchParams.set("utm_campaign", match.name || "default");
+      targetUrl.searchParams.set("subid", _r);
 
       fetch(`https://track.ordozen.com/event?id=${_r}`).catch(() => {});
-      return Response.redirect(target.toString(), 302);
 
-    } catch {
+      return Response.redirect(targetUrl.toString(), 302);
+    } catch (err) {
       return Response.redirect("https://google.com", 302);
     }
   }

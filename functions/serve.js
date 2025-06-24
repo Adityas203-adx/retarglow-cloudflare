@@ -1,4 +1,3 @@
-// serve.js
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -37,40 +36,32 @@ export default {
         return new Response(JSON.stringify({ ad_url: null }), { status: 200, headers });
       }
 
-      // Parse rules if stored as strings
-      data.forEach(row => {
-        if (typeof row.audience_rules === 'string') {
-          try {
-            row.audience_rules = JSON.parse(row.audience_rules);
-          } catch (e) {
-            row.audience_rules = {};
-          }
-        }
-      });
-
-      // Normalize domain hostname for loose matching
-      const normalize = url => {
-        try {
-          return new URL(url).hostname.replace(/^www\./, "");
-        } catch {
-          return null;
-        }
-      };
-
-      const currentDomain = normalize(u);
       let selected = null;
+      const pageUrl = new URL(u);
+      const pageDomain = pageUrl.hostname;
 
       for (const row of data) {
-        if (!row.status) continue;
+        if (row.status !== true) continue;
 
-        const domainRule = row.audience_rules?.domain;
-        if (domainRule) {
-          const ruleDomain = normalize(domainRule);
-          if (!ruleDomain || ruleDomain !== currentDomain) continue;
+        const rule = row.audience_rules?.domain;
+        if (rule) {
+          try {
+            const ruleUrl = new URL(rule.startsWith("http") ? rule : `https://${rule}`);
+            const ruleDomain = ruleUrl.hostname;
+
+            if (
+              pageDomain === ruleDomain ||
+              pageDomain.endsWith("." + ruleDomain) ||
+              u.startsWith(rule) // fallback for full path match
+            ) {
+              selected = row;
+              break;
+            }
+          } catch (_) {}
+        } else {
+          selected = row;
+          break;
         }
-
-        selected = row;
-        break;
       }
 
       if (!selected) {

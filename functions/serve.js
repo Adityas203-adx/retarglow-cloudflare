@@ -14,13 +14,8 @@ export default {
       "Content-Type": "application/json"
     };
 
-    if (req.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers });
-    }
-
-    if (req.method !== "POST") {
-      return new Response("Method Not Allowed", { status: 405, headers });
-    }
+    if (req.method === "OPTIONS") return new Response(null, { status: 204, headers });
+    if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405, headers });
 
     try {
       const body = await req.json();
@@ -30,37 +25,33 @@ export default {
       const { data, error } = await supabase
         .from("campaigns")
         .select("*")
+        .eq("status", true)
         .order("created_at", { ascending: false });
 
-      if (error || !data) {
+      if (error || !data?.length) {
         return new Response(JSON.stringify({ ad_url: null }), { status: 200, headers });
       }
 
       let selected = null;
-      const pageUrl = new URL(u);
-      const pageDomain = pageUrl.hostname;
 
       for (const row of data) {
-        if (row.status !== true) continue;
+        const domainRule = row.audience_rules?.domain;
+        if (!domainRule) continue;
 
-        const rule = row.audience_rules?.domain;
-        if (rule) {
-          try {
-            const ruleUrl = new URL(rule.startsWith("http") ? rule : `https://${rule}`);
-            const ruleDomain = ruleUrl.hostname;
+        try {
+          const campaignURL = new URL(domainRule);
+          const pageURL = new URL(u);
 
-            if (
-              pageDomain === ruleDomain ||
-              pageDomain.endsWith("." + ruleDomain) ||
-              u.startsWith(rule) // fallback for full path match
-            ) {
-              selected = row;
-              break;
-            }
-          } catch (_) {}
-        } else {
-          selected = row;
-          break;
+          // Match hostname (or subdomain) and path starts with
+          const domainMatches = pageURL.hostname.endsWith(campaignURL.hostname);
+          const pathMatches = pageURL.pathname.startsWith(campaignURL.pathname || "/");
+
+          if (domainMatches && pathMatches) {
+            selected = row;
+            break;
+          }
+        } catch (_) {
+          continue;
         }
       }
 
@@ -72,7 +63,7 @@ export default {
       return new Response(JSON.stringify({ ad_url: finalUrl }), { status: 200, headers });
 
     } catch (err) {
-      return new Response(JSON.stringify({ error: err.message }), {
+      return new Response(JSON.stringify({ ad_url: null, error: err.message }), {
         status: 500,
         headers
       });

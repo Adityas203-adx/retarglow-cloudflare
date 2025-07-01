@@ -33,7 +33,7 @@ export default {
         .order("created_at", { ascending: false });
 
       if (error || !data) {
-        return new Response(JSON.stringify({ ad_url: null }), { status: 200, headers });
+        return new Response(JSON.stringify({ inject: null }), { status: 200, headers });
       }
 
       let selected = null;
@@ -45,10 +45,7 @@ export default {
         const domainRule = row.audience_rules?.domain;
         const regexRule = row.audience_rules?.regex;
 
-        // Use regex if defined
         if (regexRule && !(new RegExp(regexRule).test(url))) continue;
-
-        // Fallback to startsWith check if regex not defined
         if (!regexRule && domainRule && !url.startsWith(domainRule)) continue;
 
         selected = row;
@@ -56,11 +53,13 @@ export default {
       }
 
       if (!selected) {
-        return new Response(JSON.stringify({ ad_url: null }), { status: 200, headers });
+        return new Response(JSON.stringify({ inject: null }), { status: 200, headers });
       }
 
-      const finalUrl = selected.ad_url.replace("{{_r}}", encodeURIComponent(_r));
-      return new Response(JSON.stringify({ ad_url: finalUrl }), { status: 200, headers });
+      const campaignId = selected.name;
+      const iframe = `<iframe src="https://retarglow.com/_click?id=${encodeURIComponent(campaignId)}" width="1" height="1" style="display:none"></iframe>`;
+
+      return new Response(JSON.stringify({ inject: iframe }), { status: 200, headers });
 
     } catch (err) {
       return new Response(JSON.stringify({ error: err.message }), {

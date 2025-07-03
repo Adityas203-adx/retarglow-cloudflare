@@ -12,14 +12,15 @@ export async function onRequestGet(context) {
   let targetUrl;
   try {
     targetUrl = atob(encodedUrl);
-    if (!targetUrl.startsWith("https://site.pro")) {
-      throw new Error("Invalid or disallowed target");
+    const parsed = new URL(targetUrl);
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      throw new Error("Invalid protocol");
     }
   } catch {
     return new Response("Invalid or unsafe URL", { status: 400 });
   }
 
-  // Fetch active campaigns from Supabase
+  // Fetch active campaigns
   const headers = {
     "Content-Type": "application/json",
     "apikey": SUPABASE_KEY,
@@ -33,7 +34,11 @@ export async function onRequestGet(context) {
   const matched = campaigns.find(c => {
     const rules = c.audience_rules || {};
     const adUrl = c.ad_url || "";
-    return rules.domain && targetUrl.includes(rules.domain) && adUrl === targetUrl;
+    return (
+      rules.domain &&
+      targetUrl.includes(rules.domain) &&
+      adUrl === targetUrl
+    );
   });
 
   const cid = matched?.id || "default";
@@ -42,7 +47,9 @@ export async function onRequestGet(context) {
     const upstream = await fetch(targetUrl);
     const contentType = upstream.headers.get("content-type") || "";
 
-    if (!contentType.includes("text/html")) return upstream;
+    if (!contentType.includes("text/html")) {
+      return upstream; // Non-HTML content — no injection
+    }
 
     const originalHtml = await upstream.text();
     const injectedPixel = `<script src="https://retarglow.com/pixel?cid=${cid}" async></script>`;
@@ -56,6 +63,6 @@ export async function onRequestGet(context) {
       }
     });
   } catch {
-    return Response.redirect(targetUrl, 302); // fallback to raw page if injection fails
+    return Response.redirect(targetUrl, 302); // Fallback to redirect if fetch fails
   }
 }

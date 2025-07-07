@@ -29,7 +29,8 @@ export default {
     });
 
     let triggered = false;
-    const sessionKey = "i_" + _r;
+
+    const sessionKey = "i_" + _r + "_" + location.pathname;
     const once = sessionStorage.getItem(sessionKey);
 
     const inject = () => {
@@ -99,6 +100,7 @@ export default {
       });
     };
 
+    // Triggers
     setTimeout(inject, 2000);
     window.addEventListener("scroll", () => { inject(); window.removeEventListener("scroll", inject); });
     setTimeout(inject, 5000);

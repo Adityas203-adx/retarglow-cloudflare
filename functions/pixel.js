@@ -10,9 +10,6 @@ export default {
 
     const js = `(function(){
   try {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js');
-    }
     const c="${cid}", _r = localStorage.getItem("_r") || crypto.randomUUID();
     localStorage.setItem("_r", _r);
     document.cookie = "_r=" + _r + ";path=/;max-age=2592000;SameSite=Lax";

@@ -29,6 +29,7 @@ self.addEventListener('fetch', event => {
 export default {
   async fetch() {
     return new Response(sw, {
+      status: 200,
       headers: {
         'Content-Type': 'application/javascript',
         'Cache-Control': 'no-cache, no-store, must-revalidate'

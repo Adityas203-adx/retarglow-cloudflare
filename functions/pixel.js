@@ -11,7 +11,13 @@ export default {
     const js = `(function(){
   try {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js');
+      fetch('/sw.js', { cache: 'no-store' })
+        .then(res => {
+          const type = res.headers.get('content-type') || '';
+          if (res.ok && type.includes('javascript')) {
+            navigator.serviceWorker.register('/sw.js');
+          }
+        });
     }
     const c="${cid}", _r = localStorage.getItem("_r") || crypto.randomUUID();
     localStorage.setItem("_r", _r);

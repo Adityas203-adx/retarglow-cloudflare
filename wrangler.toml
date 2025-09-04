@@ -1,6 +1,6 @@
 name = "retarglow"
 main = "index.js"
-compatibility_date = "2025-06-01"
+compatibility_date = "2025-09-04"
 account_id = "c0aee4b4132b43c68bc0c5b28aabc4b7"
 workers_dev = false
 

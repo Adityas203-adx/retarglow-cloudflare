@@ -3,16 +3,12 @@
   "version": "1.0.0",
   "description": "Aggressive stealth attribution system powered by Cloudflare Workers",
   "scripts": {
-    "build": "esbuild client/pixel.js --bundle --minify --outfile=client/pixel.min.js",
-    "check:client": "node scripts/check-pixel.js",
-    "deploy": "npm run build && npm run check:client && npx wrangler deploy"
+    "deploy": "npx wrangler deploy"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.50.0",
     "node-fetch": "^3.3.2"
   },
-  "devDependencies": {
-    "esbuild": "^0.21.4"
-  },
+  "devDependencies": {},
   "license": "MIT"
 }

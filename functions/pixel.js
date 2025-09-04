@@ -1,4 +1,4 @@
-import js from "../client/pixel.min.js?raw";
+import js from "../client/pixel.min.js";
 
 export default {
   async fetch(request) {

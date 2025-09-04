@@ -10,6 +10,11 @@ export default {
     const url = new URL(request.url);
     const cid = url.searchParams.get("cid") || "default";
 
-    return new Response(js.replace("__CID__", cid), { status: 200, headers });
+    try {
+      const body = js.replace("__CID__", cid);
+      return new Response(body, { status: 200, headers });
+    } catch (err) {
+      return new Response("Failed to load pixel script", { status: 500, headers });
+    }
   }
 };

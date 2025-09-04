@@ -4,7 +4,8 @@
   "description": "Aggressive stealth attribution system powered by Cloudflare Workers",
   "scripts": {
     "build": "esbuild client/pixel.js --bundle --minify --outfile=client/pixel.min.js",
-    "deploy": "npm run build && npx wrangler deploy"
+    "check:client": "node scripts/check-pixel.js",
+    "deploy": "npm run build && npm run check:client && npx wrangler deploy"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.50.0",

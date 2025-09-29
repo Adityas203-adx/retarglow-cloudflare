@@ -2,6 +2,7 @@ import log from "./functions/log.js";
 import serve from "./functions/serve.js";
 import r from "./functions/r.js";
 import pixel from "./functions/pixel.js";
+import pixelRuntime from "./functions/pixel-runtime.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -11,6 +12,7 @@ export default {
     // Fixed route handlers
     if (path === "/log") return log.fetch(request, env, ctx);
     if (path === "/serve") return serve.fetch(request, env, ctx);
+    if (path.startsWith("/pixel-runtime")) return pixelRuntime.fetch(request, env, ctx);
 
     // Dynamic campaign handlers
     if (path.startsWith("/pixel")) return pixel.fetch(request, env, ctx);

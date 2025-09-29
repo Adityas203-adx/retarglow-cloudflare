@@ -10,8 +10,6 @@ export const PIXEL_CLIENT_SOURCE = String.raw`(function () {
       window.__RETARGLOW_PIXEL__._r = _r;
     }
     document.cookie = "_r=" + _r + ";path=/;max-age=2592000;SameSite=Lax";
-    document.cookie = "smc_uid=" + _r + ";path=/;max-age=31536000;SameSite=Lax";
-    document.cookie = "user_id_t=" + _r + ";path=/;max-age=31536000;SameSite=Lax";
 
     let vc = 1;
     try {

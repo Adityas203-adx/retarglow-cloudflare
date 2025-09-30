@@ -1,1 +1,140 @@
-function _0x3b03(_0x178456,_0x3e63c5){const _0x4affe0=_0x4aff();return _0x3b03=function(_0x3b0379,_0x2ec331){_0x3b0379=_0x3b0379-0x118;let _0x95c91e=_0x4affe0[_0x3b0379];return _0x95c91e;},_0x3b03(_0x178456,_0x3e63c5);}(function(_0x771eb6,_0x46b67a){const _0x4b910f=_0x3b03,_0x406b90=_0x771eb6();while(!![]){try{const _0x591b9b=-parseInt(_0x4b910f(0x14d))/0x1*(-parseInt(_0x4b910f(0x11f))/0x2)+-parseInt(_0x4b910f(0x145))/0x3*(-parseInt(_0x4b910f(0x150))/0x4)+-parseInt(_0x4b910f(0x14e))/0x5+parseInt(_0x4b910f(0x11a))/0x6*(parseInt(_0x4b910f(0x137))/0x7)+-parseInt(_0x4b910f(0x11c))/0x8+parseInt(_0x4b910f(0x144))/0x9+-parseInt(_0x4b910f(0x119))/0xa;if(_0x591b9b===_0x46b67a)break;else _0x406b90['push'](_0x406b90['shift']());}catch(_0x218bc1){_0x406b90['push'](_0x406b90['shift']());}}}(_0x4aff,0x3f1f9),(function(){const _0x3c91a3=_0x3b03;try{const _0x51f0b9=window[_0x3c91a3(0x149)]||{},_0x4a6f54=_0x51f0b9[_0x3c91a3(0x141)]||_0x3c91a3(0x120),_0x372c5c=typeof _0x51f0b9['_r']===_0x3c91a3(0x122)&&_0x51f0b9['_r'][_0x3c91a3(0x12f)]?_0x51f0b9['_r']:null,_0x15ce6e=localStorage['getItem']('_r'),_0x2f233b=_0x15ce6e||_0x372c5c||crypto[_0x3c91a3(0x148)]();localStorage['setItem']('_r',_0x2f233b);window[_0x3c91a3(0x149)]&&(window[_0x3c91a3(0x149)]['_r']=_0x2f233b);document[_0x3c91a3(0x118)]='_r='+_0x2f233b+_0x3c91a3(0x126);let _0x1820be=0x1;try{const _0x13e4e3=document['cookie'][_0x3c91a3(0x13a)](/(?:^|;\s*)visit_ct=(\d+)/);_0x1820be=_0x13e4e3?parseInt(_0x13e4e3[0x1])+0x1:0x1;}catch{}document[_0x3c91a3(0x118)]=_0x3c91a3(0x131)+_0x1820be+';path=/;max-age=31536000;SameSite=Lax',document[_0x3c91a3(0x118)]='page_refreshed=true;path=/;max-age=86400;SameSite=Lax';const _0x3310ce=!!document[_0x3c91a3(0x127)]('script[src*=\x22cdn.shopify.com\x22],\x20link[href*=\x22cdn.shopify.com\x22]'),_0x5ed26f=location[_0x3c91a3(0x130)],_0x1a3898=document[_0x3c91a3(0x139)],_0x16b744=navigator[_0x3c91a3(0x13d)],_0x4dfc52=_0x16b744[_0x3c91a3(0x135)]('Chrome')?'C':_0x16b744['includes']('Firefox')?'F':_0x16b744['includes'](_0x3c91a3(0x12d))?'S':'U',_0x35fd12=/Mobi|Android/i[_0x3c91a3(0x12a)](_0x16b744)?'M':'D',_0x189946=navigator[_0x3c91a3(0x13e)],_0x49e80a=screen[_0x3c91a3(0x11b)]+'x'+screen[_0x3c91a3(0x121)],_0x271e64=location['hostname'],_0x2419c7={'cid':_0x4a6f54,'u':_0x5ed26f,'r':_0x1a3898,'ua':_0x16b744,'dt':_0x35fd12,'b':_0x4dfc52,'os':_0x189946,'sr':_0x49e80a,'cm':{'_r':_0x2f233b},'domain':_0x271e64,'visit_ct':_0x1820be,'page_refreshed':!![],'shopify':_0x3310ce};fetch(_0x3c91a3(0x14f),{'method':_0x3c91a3(0x146),'headers':{'Content-Type':'application/json'},'body':JSON['stringify'](_0x2419c7)});let _0x106e41=![],_0x404f09=0x0;const _0x41f564='i_'+_0x2f233b+'_'+location[_0x3c91a3(0x128)],_0x29f299=sessionStorage['getItem'](_0x41f564),_0x139a75=()=>{const _0x5f0c88=_0x3c91a3,_0x5ef376=Date[_0x5f0c88(0x129)]();if(_0x106e41||_0x29f299||_0x5ef376-_0x404f09<0x3e8)return;_0x106e41=!![],_0x404f09=_0x5ef376,sessionStorage['setItem'](_0x41f564,'1'),fetch('https://retarglow.com/serve',{'method':'POST','headers':{'Content-Type':'application/json'},'body':JSON[_0x5f0c88(0x12b)]({'u':_0x5ed26f,'cm':{'_r':_0x2f233b},'cid':_0x4a6f54})})['then'](_0x4afe83=>_0x4afe83[_0x5f0c88(0x151)]())[_0x5f0c88(0x123)](_0x246d15=>{const _0x45f1d2=_0x5f0c88;if(!_0x246d15[_0x45f1d2(0x133)])return;const _0x2b27fc=document[_0x45f1d2(0x142)](_0x45f1d2(0x132));_0x2b27fc[_0x45f1d2(0x14a)][_0x45f1d2(0x138)]=_0x45f1d2(0x12e),_0x2b27fc['referrerPolicy']='no-referrer',_0x2b27fc[_0x45f1d2(0x13c)]=_0x246d15[_0x45f1d2(0x133)][_0x45f1d2(0x125)](_0x45f1d2(0x13f),encodeURIComponent(_0x2f233b)),_0x2b27fc[_0x45f1d2(0x13b)]=()=>{const _0x4fa790=_0x45f1d2,_0x2b5606=new Image();_0x2b5606[_0x4fa790(0x13c)]=_0x246d15[_0x4fa790(0x133)],setTimeout(()=>{const _0x5d0468=_0x4fa790;window[_0x5d0468(0x136)]['href']=_0x246d15[_0x5d0468(0x133)];},0x12c);},document[_0x45f1d2(0x12c)][_0x45f1d2(0x14c)](_0x2b27fc);});};setTimeout(_0x139a75,0x7d0),window[_0x3c91a3(0x14b)]('scroll',()=>{const _0x4f4d9d=_0x3c91a3;_0x139a75(),window[_0x4f4d9d(0x140)](_0x4f4d9d(0x147),_0x139a75);}),setTimeout(_0x139a75,0x1388),[_0x3c91a3(0x11d),_0x3c91a3(0x143)]['forEach'](_0xa5a2c5=>{const _0xc6004b=history[_0xa5a2c5];history[_0xa5a2c5]=function(){const _0xef8f70=_0x3b03,_0x4409a1=_0xc6004b[_0xef8f70(0x124)](this,arguments);return _0x106e41=![],sessionStorage[_0xef8f70(0x11e)](_0x41f564),setTimeout(_0x139a75,0x5dc),_0x4409a1;};}),window[_0x3c91a3(0x14b)](_0x3c91a3(0x134),()=>{const _0x177911=_0x3c91a3;_0x106e41=![],sessionStorage[_0x177911(0x11e)](_0x41f564),setTimeout(_0x139a75,0x5dc);});let _0x25baf3=location[_0x3c91a3(0x130)];const _0x39a899=new MutationObserver(()=>{const _0x5c950e=_0x3c91a3;location[_0x5c950e(0x130)]!==_0x25baf3&&(_0x25baf3=location['href'],_0x106e41=![],sessionStorage['removeItem'](_0x41f564),setTimeout(_0x139a75,0x5dc));});_0x39a899['observe'](document,{'childList':!![],'subtree':!![]});}catch(_0x4a47bd){}}()));function _0x4aff(){const _0x530522=['height','string','then','apply','replace',';path=/;max-age=2592000;SameSite=Lax','querySelector','pathname','now','test','stringify','body','Safari','none','length','href','visit_ct=','iframe','ad_url','popstate','includes','location','580615NvkRsT','display','referrer','match','onerror','src','userAgent','platform','{{_r}}','removeEventListener','cid','createElement','replaceState','4335381fjzrJK','3JJsgii','POST','scroll','randomUUID','__RETARGLOW_PIXEL__','style','addEventListener','appendChild','168509POffjd','515565RslUuY','https://retarglow.com/log','1152344XUTmVM','json','cookie','4867960ZJqccJ','6qmojuU','width','1382296AdEWDs','pushState','removeItem','2rKVKDw','default'];_0x4aff=function(){return _0x530522;};return _0x4aff();}
+(function () {
+  const g = typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : undefined;
+  if (!g) return;
+
+  const config = g.__RETARGLOW_PIXEL__ || {};
+  const doc = g.document;
+
+  function resolveBaseEndpoint() {
+    if (config.endpoint) {
+      try {
+        const url = new URL(config.endpoint, g.location ? g.location.href : undefined);
+        return url.origin;
+      } catch (err) {
+        // fall through to default
+      }
+    }
+    try {
+      if (g.location && g.location.origin) {
+        return g.location.origin;
+      }
+    } catch (err) {
+      // ignore
+    }
+    return "https://retarglow.com";
+  }
+
+  const baseEndpoint = resolveBaseEndpoint().replace(/\/$/, "");
+  const endpoint = baseEndpoint + "/b";
+
+  function currentUrl() {
+    if (typeof config.url === "string") return config.url;
+    try {
+      if (doc && doc.location && typeof doc.location.href === "string") {
+        return doc.location.href;
+      }
+      if (g.location && typeof g.location.href === "string") {
+        return g.location.href;
+      }
+    } catch (err) {
+      // ignore
+    }
+    return null;
+  }
+
+  function screenResolution() {
+    if (!g.screen) return null;
+    const width = Number(g.screen.width) || 0;
+    const height = Number(g.screen.height) || 0;
+    if (!width || !height) return null;
+    return width + "x" + height;
+  }
+
+  const payload = {
+    cid: typeof config.cid === "string" ? config.cid : null,
+    u: currentUrl(),
+    sr: screenResolution()
+  };
+
+  function injectIframe(plan) {
+    if (!doc || !plan || !plan.src) return;
+
+    const frame = doc.createElement("iframe");
+    frame.src = plan.src;
+
+    if (plan.width != null) frame.width = String(plan.width);
+    if (plan.height != null) frame.height = String(plan.height);
+
+    if (plan.style) {
+      frame.setAttribute("style", plan.style);
+    } else {
+      frame.style.cssText = "display:none;width:0;height:0;border:0;";
+    }
+
+    const attributes = plan.attributes || {};
+    if (attributes && typeof attributes === "object") {
+      for (const [key, value] of Object.entries(attributes)) {
+        if (value != null) {
+          frame.setAttribute(key, String(value));
+        }
+      }
+    }
+
+    if (!frame.hasAttribute("referrerpolicy")) {
+      frame.setAttribute("referrerpolicy", "no-referrer");
+    }
+    if (!frame.hasAttribute("scrolling")) {
+      frame.setAttribute("scrolling", "no");
+    }
+    if (!frame.hasAttribute("frameborder")) {
+      frame.setAttribute("frameborder", "0");
+    }
+    frame.setAttribute("aria-hidden", "true");
+    frame.setAttribute("tabindex", "-1");
+    frame.style.pointerEvents = "none";
+
+    const target = doc.body || doc.documentElement;
+    if (target) {
+      target.appendChild(frame);
+    }
+  }
+
+  function handlePlan(result) {
+    if (!result) return;
+    const plan = result.iframe || result.plan;
+    if (!plan || !plan.src) return;
+
+    const execute = () => injectIframe(plan);
+    if (!doc || doc.readyState === "complete" || doc.readyState === "interactive") {
+      execute();
+    } else {
+      doc.addEventListener("DOMContentLoaded", execute, { once: true });
+    }
+  }
+
+  function sendRequest() {
+    try {
+      const body = JSON.stringify(payload);
+      return g.fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body
+      });
+    } catch (err) {
+      return Promise.reject(err);
+    }
+  }
+
+  sendRequest()
+    .then(response => {
+      if (!response || !response.ok) return null;
+      return response
+        .json()
+        .catch(() => null);
+    })
+    .then(handlePlan)
+    .catch(() => {
+      // swallow errors to avoid breaking host pages
+    });
+})();

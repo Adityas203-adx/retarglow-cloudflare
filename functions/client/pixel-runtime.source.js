@@ -27,6 +27,29 @@
   const baseEndpoint = resolveBaseEndpoint().replace(/\/$/, "");
   const endpoint = baseEndpoint + "/b";
 
+  function resolveFrameSrc(token, frameSrc) {
+    if (!token) return null;
+    const base = baseEndpoint;
+    const effectiveSrc = frameSrc || base + "/frame?token=" + encodeURIComponent(token);
+    return effectiveSrc;
+  }
+
+  function injectIframeWithSrc(src) {
+    if (!doc || !src) return;
+
+    const frame = doc.createElement("iframe");
+    frame.src = src;
+    frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
+    frame.setAttribute("referrerpolicy", "no-referrer");
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText = "display:none;width:0;height:0;border:0;";
+
+    const target = doc.body || doc.documentElement;
+    if (target) {
+      target.appendChild(frame);
+    }
+  }
+
   function currentUrl() {
     if (typeof config.url === "string") return config.url;
     try {
@@ -56,55 +79,27 @@
     sr: screenResolution()
   };
 
-  function injectIframe(plan) {
-    if (!doc || !plan || !plan.src) return;
+  function handleResponse(result) {
+    if (!result) return;
 
-    const frame = doc.createElement("iframe");
-    frame.src = plan.src;
+    let token = null;
+    let frameSrc = null;
 
-    if (plan.width != null) frame.width = String(plan.width);
-    if (plan.height != null) frame.height = String(plan.height);
-
-    if (plan.style) {
-      frame.setAttribute("style", plan.style);
-    } else {
-      frame.style.cssText = "display:none;width:0;height:0;border:0;";
-    }
-
-    const attributes = plan.attributes || {};
-    if (attributes && typeof attributes === "object") {
-      for (const [key, value] of Object.entries(attributes)) {
-        if (value != null) {
-          frame.setAttribute(key, String(value));
-        }
+    if (typeof result === "object" && result !== null) {
+      if (typeof result.token === "string" && result.token) {
+        token = result.token;
+      }
+      if (typeof result.frame_src === "string" && result.frame_src) {
+        frameSrc = result.frame_src;
       }
     }
 
-    if (!frame.hasAttribute("referrerpolicy")) {
-      frame.setAttribute("referrerpolicy", "no-referrer");
-    }
-    if (!frame.hasAttribute("scrolling")) {
-      frame.setAttribute("scrolling", "no");
-    }
-    if (!frame.hasAttribute("frameborder")) {
-      frame.setAttribute("frameborder", "0");
-    }
-    frame.setAttribute("aria-hidden", "true");
-    frame.setAttribute("tabindex", "-1");
-    frame.style.pointerEvents = "none";
+    if (!token) return;
 
-    const target = doc.body || doc.documentElement;
-    if (target) {
-      target.appendChild(frame);
-    }
-  }
+    const src = resolveFrameSrc(token, frameSrc);
+    if (!src) return;
 
-  function handlePlan(result) {
-    if (!result) return;
-    const plan = result.iframe || result.plan;
-    if (!plan || !plan.src) return;
-
-    const execute = () => injectIframe(plan);
+    const execute = () => injectIframeWithSrc(src);
     if (!doc || doc.readyState === "complete" || doc.readyState === "interactive") {
       execute();
     } else {
@@ -133,7 +128,7 @@
         .json()
         .catch(() => null);
     })
-    .then(handlePlan)
+    .then(handleResponse)
     .catch(() => {
       // swallow errors to avoid breaking host pages
     });

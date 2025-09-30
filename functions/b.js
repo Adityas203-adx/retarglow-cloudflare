@@ -1,6 +1,86 @@
 import { supabase } from "./lib/supabase.js";
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // one year
+const TOKEN_TTL_SECONDS = 60 * 5; // five minutes
+const SIGNING_SECRET_KEYS = [
+  "BOOTSTRAP_SIGNING_SECRET",
+  "B_SIGNING_SECRET",
+  "SIGNING_SECRET",
+  "TOKEN_SECRET",
+  "HMAC_SECRET"
+];
+
+const encoder = new TextEncoder();
+const signingKeyCache = new Map();
+
+function base64UrlEncode(input) {
+  let bytes;
+  if (typeof input === "string") {
+    bytes = encoder.encode(input);
+  } else if (input instanceof ArrayBuffer) {
+    bytes = new Uint8Array(input);
+  } else if (ArrayBuffer.isView(input)) {
+    bytes = new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
+  } else {
+    throw new TypeError("Unsupported input type for base64 encoding");
+  }
+
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+
+  const base64 = btoa(binary);
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function getSigningSecret(env) {
+  for (const key of SIGNING_SECRET_KEYS) {
+    const value = env?.[key];
+    if (typeof value === "string" && value.length > 0) {
+      return value;
+    }
+  }
+  throw new Error("Missing signing secret for bootstrap token");
+}
+
+async function getSigningKey(secret) {
+  if (!signingKeyCache.has(secret)) {
+    const keyPromise = crypto.subtle.importKey(
+      "raw",
+      encoder.encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    signingKeyCache.set(secret, keyPromise);
+  }
+
+  return signingKeyCache.get(secret);
+}
+
+async function signPayload(env, payloadString) {
+  const secret = getSigningSecret(env);
+  const key = await getSigningKey(secret);
+  const signatureBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(payloadString));
+  return base64UrlEncode(signatureBuffer);
+}
+
+async function encodeToken(env, payload) {
+  const json = JSON.stringify(payload);
+  const payloadSegment = base64UrlEncode(json);
+  const signatureSegment = await signPayload(env, json);
+  return `${payloadSegment}.${signatureSegment}`;
+}
+
+function generateNonce() {
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return base64UrlEncode(bytes);
+  }
+  return base64UrlEncode(Math.random().toString(36).slice(2));
+}
 
 function parseCookies(header = "") {
   return header.split(";").reduce((acc, part) => {
@@ -24,7 +104,8 @@ function serializeCookie(name, value, options = {}) {
 function corsHeaders(origin) {
   const headers = {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "content-type"
+    "Access-Control-Allow-Headers": "content-type, authorization",
+    Vary: "Origin"
   };
   if (origin) {
     headers["Access-Control-Allow-Origin"] = origin;
@@ -33,6 +114,27 @@ function corsHeaders(origin) {
     headers["Access-Control-Allow-Origin"] = "*";
   }
   return headers;
+}
+
+function deriveFrameOrigin(request, env) {
+  const requestOrigin = request.headers.get("Origin");
+  if (requestOrigin) return requestOrigin.replace(/\/$/, "");
+
+  for (const key of ["FRAME_ORIGIN", "BOOTSTRAP_FRAME_ORIGIN", "APP_ORIGIN"]) {
+    const candidate = env?.[key];
+    if (typeof candidate === "string" && candidate.length > 0) {
+      return candidate.replace(/\/$/, "");
+    }
+  }
+
+  try {
+    const url = new URL(request.url);
+    return url.origin.replace(/\/$/, "");
+  } catch (err) {
+    console.error("deriveFrameOrigin error", err);
+  }
+
+  return "https://retarglow.com";
 }
 
 function generateRetargetId() {
@@ -157,7 +259,8 @@ async function logVisit({ request, cid, pageUrl, screenResolution, visitCount, r
 
 export default {
   async fetch(request, env, ctx) {
-    const origin = request.headers.get("Origin");
+    const frameOrigin = deriveFrameOrigin(request, env);
+    const origin = request.headers.get("Origin") || frameOrigin;
     const baseHeaders = corsHeaders(origin);
 
     if (request.method === "OPTIONS") {
@@ -229,24 +332,38 @@ export default {
       })
     );
 
-    const body = {
-      success: true,
-      iframe: adPlan
-        ? {
+    let token = null;
+    if (adPlan) {
+      try {
+        const payload = {
+          nonce: generateNonce(),
+          exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
+          plan: {
+            campaignId: adPlan.campaignId,
             src: adPlan.src,
             width: adPlan.width,
             height: adPlan.height,
             style: adPlan.style,
             attributes: adPlan.attributes
           }
-        : null,
-      meta: {
-        visit_ct: visitCount,
-        campaign_id: adPlan?.campaignId || null
+        };
+        token = await encodeToken(env, payload);
+      } catch (err) {
+        console.error("token signing error", err);
+        return new Response(JSON.stringify({ error: "Failed to sign response" }), {
+          status: 500,
+          headers
+        });
       }
+    }
+
+    const responseBody = {
+      success: true,
+      token,
+      frame_src: `${frameOrigin}/frame`
     };
 
-    return new Response(JSON.stringify(body), {
+    return new Response(JSON.stringify(responseBody), {
       status: 200,
       headers
     });

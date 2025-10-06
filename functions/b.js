@@ -119,8 +119,17 @@ async function selectAdPlan(pageUrl = "", retargetId) {
         : null;
       if (!adUrl) continue;
 
+      let campaignId = null;
+      if (row?.id != null) {
+        try {
+          campaignId = String(row.id);
+        } catch (err) {
+          campaignId = null;
+        }
+      }
+
       return {
-        campaignId: row.id || null,
+        campaignId,
         src: adUrl,
         width: row.iframe_width ?? 0,
         height: row.iframe_height ?? 0,

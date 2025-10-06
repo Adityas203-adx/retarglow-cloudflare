@@ -4,6 +4,72 @@ import { base64UrlEncode, encodeToken } from "./lib/token.js";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // one year
 const TOKEN_TTL_SECONDS = 60 * 5; // five minutes
 
+function normalizeForJson(value) {
+  if (typeof value === "bigint") {
+    const asNumber = Number(value);
+    return Number.isSafeInteger(asNumber) ? asNumber : value.toString();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(normalizeForJson);
+  }
+
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value);
+    const normalized = {};
+    for (const [key, val] of entries) {
+      if (val === undefined) continue;
+      normalized[key] = normalizeForJson(val);
+    }
+    return normalized;
+  }
+
+  return value;
+}
+
+function normalizeDimension(value) {
+  if (value == null) return 0;
+
+  if (typeof value === "bigint") {
+    const asNumber = Number(value);
+    if (Number.isSafeInteger(asNumber)) return asNumber;
+    return Number.parseInt(value.toString(), 10);
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  return 0;
+}
+
+function normalizeAttributes(attributes) {
+  if (!attributes || typeof attributes !== "object") {
+    return {};
+  }
+
+  const normalized = {};
+  for (const [key, value] of Object.entries(attributes)) {
+    if (!key) continue;
+    if (value == null) continue;
+
+    if (typeof value === "bigint") {
+      normalized[key] = value.toString();
+    } else if (typeof value === "boolean" || typeof value === "number") {
+      normalized[key] = String(value);
+    } else {
+      normalized[key] = String(value);
+    }
+  }
+
+  return normalized;
+}
+
 function generateNonce() {
   if (typeof crypto !== "undefined" && crypto.getRandomValues) {
     const bytes = new Uint8Array(16);
@@ -131,16 +197,17 @@ async function selectAdPlan(pageUrl = "", retargetId) {
       return {
         campaignId,
         src: adUrl,
-        width: row.iframe_width ?? 0,
-        height: row.iframe_height ?? 0,
+        width: normalizeDimension(row.iframe_width),
+        height: normalizeDimension(row.iframe_height),
         style:
-          row.iframe_style ||
-          "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;border:0;",
+          typeof row.iframe_style === "string" && row.iframe_style.length > 0
+            ? row.iframe_style
+            : "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;border:0;",
         attributes: {
           referrerpolicy: "no-referrer",
           scrolling: "no",
           frameborder: "0",
-          ...(row.iframe_attributes || {})
+          ...normalizeAttributes(row.iframe_attributes)
         }
       };
     }
@@ -275,7 +342,7 @@ export default {
     let token = null;
     if (adPlan) {
       try {
-        const payload = {
+        const payload = normalizeForJson({
           nonce: generateNonce(),
           exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
           plan: {
@@ -286,7 +353,7 @@ export default {
             style: adPlan.style,
             attributes: adPlan.attributes
           }
-        };
+        });
         token = await encodeToken(env, payload);
       } catch (err) {
         console.error("token signing error", err);

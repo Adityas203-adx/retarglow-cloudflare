@@ -9,5 +9,7 @@ routes = [
   { pattern = "retarglow.com/log", zone_name = "retarglow.com" },
   { pattern = "retarglow.com/serve", zone_name = "retarglow.com" },
   { pattern = "retarglow.com/r*", zone_name = "retarglow.com" },
-  { pattern = "retarglow.com/pixel*", zone_name = "retarglow.com" }
+  { pattern = "retarglow.com/pixel*", zone_name = "retarglow.com" },
+  { pattern = "retarglow.com/pixel-runtime*", zone_name = "retarglow.com" },
+  { pattern = "retarglow.com/frame*", zone_name = "retarglow.com" }
 ]

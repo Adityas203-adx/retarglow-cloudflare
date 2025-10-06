@@ -5,9 +5,5 @@ account_id = "c0aee4b4132b43c68bc0c5b28aabc4b7"
 workers_dev = false
 
 routes = [
-  { pattern = "retarglow.com/b", zone_name = "retarglow.com" },
-  { pattern = "retarglow.com/log", zone_name = "retarglow.com" },
-  { pattern = "retarglow.com/serve", zone_name = "retarglow.com" },
-  { pattern = "retarglow.com/r*", zone_name = "retarglow.com" },
-  { pattern = "retarglow.com/pixel*", zone_name = "retarglow.com" }
+  { pattern = "retarglow.com/*", zone_name = "retarglow.com" }
 ]

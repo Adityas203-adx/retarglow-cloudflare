@@ -14,6 +14,7 @@ const SIGNING_SECRET_KEYS = [
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const signingKeyCache = new Map();
+const SECRET_CONTAINER_KEYS = ["secrets", "Secrets", "secret", "Secret", "vars", "Variables"]; // compatibility helpers
 
 /**
  * Encodes a string/ArrayBuffer into a URL-safe base64 variant. Used for both
@@ -68,13 +69,49 @@ function base64UrlDecodeToString(input = "") {
  * @param {Env} env
  * @returns {string}
  */
-function getSigningSecret(env) {
-  for (const key of SIGNING_SECRET_KEYS) {
-    const value = env?.[key];
+function extractSecret(candidate) {
+  if (typeof candidate === "string" && candidate.length > 0) {
+    return candidate;
+  }
+
+  if (candidate && typeof candidate === "object") {
+    const { value, default: defaultValue } = candidate;
     if (typeof value === "string" && value.length > 0) {
       return value;
     }
+    if (typeof defaultValue === "string" && defaultValue.length > 0) {
+      return defaultValue;
+    }
   }
+
+  return null;
+}
+
+function getSigningSecret(env) {
+  const containers = [];
+  if (env && typeof env === "object") {
+    containers.push(env);
+    for (const key of SECRET_CONTAINER_KEYS) {
+      const nested = env[key];
+      if (nested && typeof nested === "object") {
+        containers.push(nested);
+      }
+    }
+  }
+
+  for (const container of containers) {
+    for (const key of SIGNING_SECRET_KEYS) {
+      const value = extractSecret(container[key]);
+      if (value) return value;
+
+      const lowerKey = key.toLowerCase();
+      if (lowerKey !== key) {
+        const lowerValue = extractSecret(container[lowerKey]);
+        if (lowerValue) return lowerValue;
+      }
+    }
+  }
+
   throw new Error("Missing signing secret for token");
 }
 

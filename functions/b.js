@@ -359,9 +359,12 @@ export default {
 
     const responseBody = {
       success: true,
-      token,
-      frame_src: `${frameOrigin}/frame`
+      token
     };
+
+    if (token) {
+      responseBody.frame_src = `${frameOrigin}/frame?token=${encodeURIComponent(token)}`;
+    }
 
     return new Response(JSON.stringify(responseBody), {
       status: 200,

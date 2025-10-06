@@ -357,10 +357,7 @@ export default {
         token = await encodeToken(env, payload);
       } catch (err) {
         console.error("token signing error", err);
-        return new Response(JSON.stringify({ error: "Failed to sign response" }), {
-          status: 500,
-          headers
-        });
+        token = null;
       }
     }
 

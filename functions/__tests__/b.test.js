@@ -193,6 +193,62 @@ test("bootstrap response omits frame_src when token is not generated", { concurr
   });
 });
 
+test("bootstrap gracefully falls back when signing secret is missing", { concurrency: false }, async () => {
+  await withSupabaseStub((table) => {
+    if (table === "campaigns") {
+      return {
+        select: () => ({
+          order: async () => ({
+            data: [
+              {
+                id: "cmp-456",
+                status: true,
+                ad_url: "https://ads.example.com/render?rid={{_r}}",
+                iframe_width: 300,
+                iframe_height: 250,
+                iframe_style: "border:0;",
+                iframe_attributes: { allow: "autoplay" }
+              }
+            ],
+            error: null
+          })
+        })
+      };
+    }
+
+    if (table === "events") {
+      return {
+        insert: async () => ({ error: null })
+      };
+    }
+
+    throw new Error(`Unexpected table: ${table}`);
+  }, async () => {
+    const request = new Request("https://bootstrap.example.com/api", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Origin: "https://bootstrap.example.com",
+        Cookie: ""
+      },
+      body: JSON.stringify({})
+    });
+
+    const env = {}; // intentionally missing signing secret
+
+    const response = await workerModule.default.fetch(request, env, {
+      waitUntil: () => {}
+    });
+
+    assert.equal(response.status, 200);
+    const json = await response.json();
+
+    assert.equal(json.success, true);
+    assert.equal(json.token, null);
+    assert.equal("frame_src" in json, false);
+  });
+});
+
 test("bootstrap token payload normalizes bigint values", { concurrency: false }, async () => {
   await withSupabaseStub((table) => {
     if (table === "campaigns") {

@@ -4,7 +4,8 @@
   "description": "Aggressive stealth attribution system powered by Cloudflare Workers",
   "scripts": {
     "build:pixel-runtime": "node scripts/build-pixel-runtime.mjs",
-    "deploy": "npx wrangler deploy"
+    "deploy": "npx wrangler deploy",
+    "lint": "node scripts/lint.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.50.0",

@@ -1,77 +1,8 @@
 import { supabase } from "./lib/supabase.js";
+import { base64UrlEncode, encodeToken } from "./lib/token.js";
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // one year
 const TOKEN_TTL_SECONDS = 60 * 5; // five minutes
-const SIGNING_SECRET_KEYS = [
-  "BOOTSTRAP_SIGNING_SECRET",
-  "B_SIGNING_SECRET",
-  "SIGNING_SECRET",
-  "TOKEN_SECRET",
-  "HMAC_SECRET"
-];
-
-const encoder = new TextEncoder();
-const signingKeyCache = new Map();
-
-function base64UrlEncode(input) {
-  let bytes;
-  if (typeof input === "string") {
-    bytes = encoder.encode(input);
-  } else if (input instanceof ArrayBuffer) {
-    bytes = new Uint8Array(input);
-  } else if (ArrayBuffer.isView(input)) {
-    bytes = new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
-  } else {
-    throw new TypeError("Unsupported input type for base64 encoding");
-  }
-
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += 1) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-
-  const base64 = btoa(binary);
-  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function getSigningSecret(env) {
-  for (const key of SIGNING_SECRET_KEYS) {
-    const value = env?.[key];
-    if (typeof value === "string" && value.length > 0) {
-      return value;
-    }
-  }
-  throw new Error("Missing signing secret for bootstrap token");
-}
-
-async function getSigningKey(secret) {
-  if (!signingKeyCache.has(secret)) {
-    const keyPromise = crypto.subtle.importKey(
-      "raw",
-      encoder.encode(secret),
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign"]
-    );
-    signingKeyCache.set(secret, keyPromise);
-  }
-
-  return signingKeyCache.get(secret);
-}
-
-async function signPayload(env, payloadString) {
-  const secret = getSigningSecret(env);
-  const key = await getSigningKey(secret);
-  const signatureBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(payloadString));
-  return base64UrlEncode(signatureBuffer);
-}
-
-async function encodeToken(env, payload) {
-  const json = JSON.stringify(payload);
-  const payloadSegment = base64UrlEncode(json);
-  const signatureSegment = await signPayload(env, json);
-  return `${payloadSegment}.${signatureSegment}`;
-}
 
 function generateNonce() {
   if (typeof crypto !== "undefined" && crypto.getRandomValues) {

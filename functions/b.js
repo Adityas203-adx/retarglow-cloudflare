@@ -70,6 +70,26 @@ function normalizeAttributes(attributes) {
   return normalized;
 }
 
+function isActiveStatus(value) {
+  if (value === true) return true;
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return false;
+    return ["true", "t", "1", "yes", "y"].includes(normalized);
+  }
+
+  if (typeof value === "number") {
+    return value === 1;
+  }
+
+  if (typeof value === "bigint") {
+    return value === 1n;
+  }
+
+  return false;
+}
+
 function generateNonce() {
   if (typeof crypto !== "undefined" && crypto.getRandomValues) {
     const bytes = new Uint8Array(16);
@@ -247,7 +267,7 @@ async function selectAdPlan(pageUrl = "", retargetId) {
 
     const url = pageUrl || "";
     for (const row of data) {
-      if (!row || row.status !== true) continue;
+      if (!row || !isActiveStatus(row.status)) continue;
 
       const rules = row.audience_rules || {};
       const regexRule = rules.regex;

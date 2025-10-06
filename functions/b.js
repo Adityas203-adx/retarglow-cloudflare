@@ -150,6 +150,90 @@ function inferDeviceType(ua = "") {
   return /mobile|android|iphone|ipad|ipod/i.test(ua) ? "Mobile" : "Desktop";
 }
 
+function tryParseUrl(value) {
+  if (typeof value !== "string" || value.trim() === "") {
+    return null;
+  }
+
+  try {
+    return new URL(value);
+  } catch (err) {
+    return null;
+  }
+}
+
+function normalizePath(path = "") {
+  if (typeof path !== "string") return "";
+  let normalized = path.trim();
+  if (!normalized || normalized === "/") return "";
+  if (!normalized.startsWith("/")) normalized = `/${normalized}`;
+  normalized = normalized.replace(/\/+$/, "");
+  return normalized === "" ? "" : normalized;
+}
+
+function normalizeDomainRule(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const candidates = [];
+  if (/^https?:\/\//i.test(trimmed)) {
+    candidates.push(trimmed);
+  } else {
+    candidates.push(`https://${trimmed}`);
+    candidates.push(trimmed);
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = new URL(candidate);
+      const hostname = parsed.hostname?.toLowerCase();
+      if (!hostname) continue;
+      const path = normalizePath(parsed.pathname || "");
+      return { hostname, path };
+    } catch (err) {
+      // try next candidate
+    }
+  }
+
+  const withoutProtocol = trimmed.replace(/^[^/]*:\/\//, "");
+  const [hostPart = "", ...pathParts] = withoutProtocol.split("/");
+  const hostname = hostPart.toLowerCase();
+  if (!hostname) return null;
+  const path = normalizePath(pathParts.join("/"));
+  return { hostname, path };
+}
+
+function matchesDomainRule(pageUrl, domainRule) {
+  const normalizedRule = normalizeDomainRule(domainRule);
+  if (!normalizedRule) return false;
+
+  const parsedPage = tryParseUrl(pageUrl);
+  if (!parsedPage) {
+    if (typeof pageUrl === "string" && pageUrl.trim() !== "") {
+      return pageUrl.startsWith(domainRule);
+    }
+    return false;
+  }
+
+  const pageHostname = parsedPage.hostname?.toLowerCase();
+  if (!pageHostname) return false;
+
+  const { hostname: ruleHost, path: rulePath } = normalizedRule;
+  const hostMatches =
+    pageHostname === ruleHost || pageHostname.endsWith(`.${ruleHost}`);
+  if (!hostMatches) return false;
+
+  if (rulePath) {
+    const pagePath = parsedPage.pathname || "/";
+    if (!(pagePath === rulePath || pagePath.startsWith(`${rulePath}/`))) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 async function selectAdPlan(pageUrl = "", retargetId) {
   try {
     const { data, error } = await supabase
@@ -177,7 +261,7 @@ async function selectAdPlan(pageUrl = "", retargetId) {
           continue;
         }
       } else if (domainRule && typeof domainRule === "string") {
-        if (!url.startsWith(domainRule)) continue;
+        if (!matchesDomainRule(url, domainRule)) continue;
       }
 
       const adUrl = typeof row.ad_url === "string"
@@ -202,7 +286,7 @@ async function selectAdPlan(pageUrl = "", retargetId) {
         style:
           typeof row.iframe_style === "string" && row.iframe_style.length > 0
             ? row.iframe_style
-            : "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;border:0;",
+            : "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;visibility:hidden;border:0;",
         attributes: {
           referrerpolicy: "no-referrer",
           scrolling: "no",

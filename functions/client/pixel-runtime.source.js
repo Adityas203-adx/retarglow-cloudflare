@@ -87,7 +87,6 @@
 
     const iframe = doc.createElement("iframe");
     iframe.src = src;
-    iframe.setAttribute("sandbox", "allow-scripts allow-same-origin");
     iframe.setAttribute("referrerpolicy", "no-referrer");
     iframe.setAttribute("aria-hidden", "true");
     iframe.setAttribute("tabindex", "-1");

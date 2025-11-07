@@ -8,12 +8,13 @@ export default {
     const runtimeUrl = `${origin}/${PIXEL_RUNTIME_FILENAME}`;
 
     const config = { cid, endpoint: origin };
-    const bootstrap = `<!DOCTYPE html><meta charset=\"utf-8\"><script>(function(){var c=${JSON.stringify(config)};var w=window;w.__RETARGLOW_PIXEL__=c;var d=document;function l(){var s=d.createElement(\"script\");s.src=${JSON.stringify(runtimeUrl)};s.async=true;s.defer=true;s.crossOrigin=\"anonymous\";var t=d.head||d.documentElement;t&&t.appendChild(s);}if(d.readyState===\"loading\"){d.addEventListener(\"DOMContentLoaded\",l,{once:true});}else{l();}})();</script>`;
+    const bootstrap = `(()=>{var c=${JSON.stringify(config)};var w=window;w.__RETARGLOW_PIXEL__=c;var d=document;function l(){var s=d.createElement("script");s.src=${JSON.stringify(runtimeUrl)};s.async=true;s.defer=true;s.crossOrigin="anonymous";var t=d.head||d.documentElement;t&&t.appendChild(s);}if(d.readyState==="loading"){d.addEventListener("DOMContentLoaded",l,{once:true});}else{l();}})();`;
 
     const headers = {
-      "Content-Type": "text/html; charset=utf-8",
+      "Content-Type": "application/javascript; charset=utf-8",
       "Cache-Control": "public, max-age=300",
-      "Access-Control-Allow-Origin": "*"
+      "Access-Control-Allow-Origin": "*",
+      "X-Content-Type-Options": "nosniff"
     };
 
     return new Response(bootstrap, { status: 200, headers });

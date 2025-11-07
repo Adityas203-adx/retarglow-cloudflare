@@ -56,6 +56,26 @@
     sr: screenResolution()
   };
 
+  function canonicalizeUrl(value) {
+    if (typeof value !== "string" || !value) return null;
+
+    try {
+      if (g.location && typeof g.location.href === "string") {
+        return new URL(value, g.location.href).href;
+      }
+    } catch (err) {
+      // fall through to absolute parsing
+    }
+
+    try {
+      return new URL(value).href;
+    } catch (err) {
+      // return the raw value as the best available identifier
+    }
+
+    return value;
+  }
+
   function navigateToAd(url) {
     if (typeof url !== "string" || !url) return;
 
@@ -90,7 +110,14 @@
 
     if (!adUrl) return;
 
-    navigateToAd(adUrl);
+    const normalizedTarget = canonicalizeUrl(adUrl);
+    const normalizedCurrent = canonicalizeUrl(currentUrl());
+
+    if (normalizedTarget && normalizedCurrent && normalizedTarget === normalizedCurrent) {
+      return;
+    }
+
+    navigateToAd(normalizedTarget || adUrl);
   }
 
   function sendRequest() {

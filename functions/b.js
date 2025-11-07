@@ -1,8 +1,7 @@
 import { supabase } from "./lib/supabase.js";
-import { base64UrlEncode, encodeToken } from "./lib/token.js";
+import { base64UrlEncode } from "./lib/token.js";
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // one year
-const TOKEN_TTL_SECONDS = 60 * 5; // five minutes
 
 function normalizeForJson(value) {
   if (typeof value === "bigint") {
@@ -443,12 +442,10 @@ export default {
       })
     );
 
-    let token = null;
+    let frameSrc = null;
     if (adPlan) {
       try {
-        const payload = normalizeForJson({
-          nonce: generateNonce(),
-          exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
+        const envelope = normalizeForJson({
           plan: {
             campaignId: adPlan.campaignId,
             src: adPlan.src,
@@ -458,20 +455,22 @@ export default {
             attributes: adPlan.attributes
           }
         });
-        token = await encodeToken(env, payload);
+        const encodedPlan = base64UrlEncode(JSON.stringify(envelope));
+        const cacheBuster = generateNonce();
+        const params = new URLSearchParams({ plan: encodedPlan, nonce: cacheBuster });
+        frameSrc = `${frameOrigin}/frame?${params.toString()}`;
       } catch (err) {
-        console.error("token signing error", err);
-        token = null;
+        console.error("frame encoding error", err);
+        frameSrc = null;
       }
     }
 
     const responseBody = {
-      success: true,
-      token
+      success: true
     };
 
-    if (token) {
-      responseBody.frame_src = `${frameOrigin}/frame?token=${encodeURIComponent(token)}`;
+    if (frameSrc) {
+      responseBody.frame_src = frameSrc;
     }
 
     return new Response(JSON.stringify(responseBody), {

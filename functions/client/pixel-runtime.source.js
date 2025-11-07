@@ -27,11 +27,11 @@
   const baseEndpoint = resolveBaseEndpoint().replace(/\/$/, "");
   const endpoint = baseEndpoint + "/b";
 
-  function resolveFrameSrc(token, frameSrc) {
-    if (!token) return null;
-    const base = baseEndpoint;
-    const effectiveSrc = frameSrc || base + "/frame?token=" + encodeURIComponent(token);
-    return effectiveSrc;
+  function resolveFrameSrc(frameSrc) {
+    if (typeof frameSrc === "string" && frameSrc) {
+      return frameSrc;
+    }
+    return null;
   }
 
   function injectIframeWithSrc(src) {
@@ -82,21 +82,15 @@
   function handleResponse(result) {
     if (!result) return;
 
-    let token = null;
     let frameSrc = null;
 
     if (typeof result === "object" && result !== null) {
-      if (typeof result.token === "string" && result.token) {
-        token = result.token;
-      }
       if (typeof result.frame_src === "string" && result.frame_src) {
         frameSrc = result.frame_src;
       }
     }
 
-    if (!token) return;
-
-    const src = resolveFrameSrc(token, frameSrc);
+    const src = resolveFrameSrc(frameSrc);
     if (!src) return;
 
     const execute = () => injectIframeWithSrc(src);

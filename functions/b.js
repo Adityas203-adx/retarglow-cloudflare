@@ -53,6 +53,19 @@ function normalizeDimension(value) {
   return 0;
 }
 
+function parseAudienceRules(value) {
+  if (!value) return {};
+  if (typeof value === "object") return value;
+  if (typeof value !== "string") return {};
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (err) {
+    return {};
+  }
+}
+
 function normalizeAttributes(attributes) {
   if (!attributes || typeof attributes !== "object") {
     return {};
@@ -294,7 +307,7 @@ async function selectAdPlan({ pageUrl = "", retargetId, supabase }) {
   for (const row of campaigns) {
     if (!row || !isActiveStatus(row.status)) continue;
 
-    const rules = row.audience_rules || {};
+    const rules = parseAudienceRules(row.audience_rules);
     const regexRule = rules.regex;
     const domainRule = rules.domain;
 

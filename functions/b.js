@@ -240,9 +240,6 @@ function corsHeaders(origin) {
 }
 
 function deriveFrameOrigin(request, env) {
-  const requestOrigin = request.headers.get("Origin");
-  if (requestOrigin) return requestOrigin.replace(/\/$/, "");
-
   for (const key of ["FRAME_ORIGIN", "BOOTSTRAP_FRAME_ORIGIN", "APP_ORIGIN"]) {
     const candidate = env?.[key];
     if (typeof candidate === "string" && candidate.length > 0) {
@@ -252,9 +249,16 @@ function deriveFrameOrigin(request, env) {
 
   try {
     const url = new URL(request.url);
-    return url.origin.replace(/\/$/, "");
+    if (url.origin) {
+      return url.origin.replace(/\/$/, "");
+    }
   } catch (err) {
     console.error("deriveFrameOrigin error", err);
+  }
+
+  const requestOrigin = request.headers.get("Origin");
+  if (requestOrigin) {
+    return requestOrigin.replace(/\/$/, "");
   }
 
   return "https://retarglow.com";

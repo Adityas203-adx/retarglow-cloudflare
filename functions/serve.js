@@ -1,4 +1,4 @@
-import { supabase } from "./lib/supabase.js";
+import { getSupabaseClient } from "./lib/supabase.js";
 
 export default {
   async fetch(req, env, ctx) {
@@ -15,6 +15,16 @@ export default {
 
     if (req.method !== "POST") {
       return new Response("Method Not Allowed", { status: 405, headers });
+    }
+
+    let supabase;
+    try {
+      supabase = getSupabaseClient(env);
+    } catch (err) {
+      return new Response(JSON.stringify({ error: "Supabase not configured" }), {
+        status: 500,
+        headers
+      });
     }
 
     try {

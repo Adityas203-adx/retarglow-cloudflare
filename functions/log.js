@@ -1,4 +1,4 @@
-import { supabase } from "./lib/supabase.js"
+import { getSupabaseClient } from "./lib/supabase.js"
 
 function cors() {
   return {
@@ -10,13 +10,23 @@ function cors() {
 }
 
 export default {
-  async fetch(req) {
+  async fetch(req, env) {
     if (req.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: cors() })
     }
 
     if (req.method !== "POST") {
       return new Response("Method Not Allowed", { status: 405, headers: cors() })
+    }
+
+    let supabase
+    try {
+      supabase = getSupabaseClient(env)
+    } catch (err) {
+      return new Response(JSON.stringify({ error: "Supabase not configured" }), {
+        status: 500,
+        headers: cors()
+      })
     }
 
     try {

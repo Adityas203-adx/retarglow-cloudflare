@@ -1,8 +1,14 @@
-import { supabase } from "./lib/supabase.js";
+import { getSupabaseClient } from "./lib/supabase.js";
 import { base64UrlEncode, encodeToken } from "./lib/token.js";
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // one year
 const TOKEN_TTL_SECONDS = 60 * 5; // five minutes
+const CAMPAIGN_CACHE_TTL_MS = 60 * 1000;
+const CLICK_ID_PARAMS = ["irclickid", "gclid", "msclkid", "fbclid", "ttclid", "yclid"];
+const CLICK_ID_PLACEHOLDER = /\{\{\s*irclickid\s*\}\}/gi;
+
+let cachedCampaigns = null;
+let cachedCampaignExpiry = 0;
 
 function normalizeForJson(value) {
   if (typeof value === "bigint") {
@@ -46,6 +52,107 @@ function normalizeDimension(value) {
   }
 
   return 0;
+}
+
+function parseAudienceRules(value) {
+  if (!value) return {};
+  if (typeof value === "object") return value;
+  if (typeof value !== "string") return {};
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (err) {
+    return {};
+  }
+}
+
+function toArray(value) {
+  if (value == null) return [];
+  if (Array.isArray(value)) return value;
+  return [value];
+}
+
+function extractRuleValues(source, keys) {
+  if (!source || typeof source !== "object") return [];
+
+  const values = [];
+  for (const key of keys) {
+    if (!(key in source)) continue;
+    const raw = source[key];
+    const queue = [...toArray(raw)];
+    while (queue.length > 0) {
+      const entry = queue.shift();
+      if (entry == null) continue;
+      if (typeof entry === "string") {
+        const trimmed = entry.trim();
+        if (trimmed) values.push(trimmed);
+        continue;
+      }
+      if (Array.isArray(entry)) {
+        queue.push(...entry);
+        continue;
+      }
+      if (typeof entry === "object") {
+        const nested = extractRuleValues(entry, [
+          "value",
+          "pattern",
+          "regex",
+          "domain",
+          "url"
+        ]);
+        if (nested.length > 0) values.push(...nested);
+      }
+    }
+  }
+
+  return values;
+}
+
+function normalizeAudienceRuleCollection(rules) {
+  if (!rules || typeof rules !== "object") {
+    return { regex: [], domain: [] };
+  }
+
+  const regexValues = new Set();
+  const domainValues = new Set();
+
+  const addRegex = value => {
+    if (typeof value !== "string") return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    regexValues.add(trimmed);
+  };
+
+  const addDomain = value => {
+    if (typeof value !== "string") return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    domainValues.add(trimmed);
+  };
+
+  const regexEntries = extractRuleValues(rules, ["regex", "regexes", "pattern", "patterns"]);
+  for (const value of regexEntries) addRegex(value);
+
+  const domainEntries = extractRuleValues(rules, ["domain", "domains", "host", "hosts"]);
+  for (const value of domainEntries) addDomain(value);
+
+  if (Array.isArray(rules.rules)) {
+    for (const entry of rules.rules) {
+      if (!entry || typeof entry !== "object") continue;
+      const type = typeof entry.type === "string" ? entry.type.trim().toLowerCase() : "";
+      if (type === "regex" || type === "pattern") {
+        extractRuleValues(entry, ["value", "pattern", "regex"]).forEach(addRegex);
+      } else if (type === "domain" || type === "host") {
+        extractRuleValues(entry, ["value", "domain", "url", "host"]).forEach(addDomain);
+      }
+    }
+  }
+
+  return {
+    regex: Array.from(regexValues),
+    domain: Array.from(domainValues)
+  };
 }
 
 function normalizeAttributes(attributes) {
@@ -134,9 +241,6 @@ function corsHeaders(origin) {
 }
 
 function deriveFrameOrigin(request, env) {
-  const requestOrigin = request.headers.get("Origin");
-  if (requestOrigin) return requestOrigin.replace(/\/$/, "");
-
   for (const key of ["FRAME_ORIGIN", "BOOTSTRAP_FRAME_ORIGIN", "APP_ORIGIN"]) {
     const candidate = env?.[key];
     if (typeof candidate === "string" && candidate.length > 0) {
@@ -146,9 +250,16 @@ function deriveFrameOrigin(request, env) {
 
   try {
     const url = new URL(request.url);
-    return url.origin.replace(/\/$/, "");
+    if (url.origin) {
+      return url.origin.replace(/\/$/, "");
+    }
   } catch (err) {
     console.error("deriveFrameOrigin error", err);
+  }
+
+  const requestOrigin = request.headers.get("Origin");
+  if (requestOrigin) {
+    return requestOrigin.replace(/\/$/, "");
   }
 
   return "https://retarglow.com";
@@ -164,6 +275,53 @@ function generateRetargetId() {
     return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
   }
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
+}
+
+function generateClickId(retargetId) {
+  let randomSegment;
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const bytes = new Uint8Array(12);
+    crypto.getRandomValues(bytes);
+    randomSegment = base64UrlEncode(bytes);
+  } else {
+    randomSegment = base64UrlEncode(`${Math.random()}${Date.now()}`);
+  }
+
+  const timestampSegment = Date.now().toString(36);
+  const normalizedRetargetId =
+    typeof retargetId === "string" && retargetId
+      ? retargetId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 16)
+      : null;
+
+  return [normalizedRetargetId, timestampSegment, randomSegment]
+    .filter(Boolean)
+    .join(".");
+}
+
+function ensureClickIdInAdUrl(adUrl, retargetId) {
+  if (typeof adUrl !== "string" || adUrl.trim() === "") {
+    return { url: null, clickId: null };
+  }
+
+  const trimmed = adUrl.trim();
+  const clickId = generateClickId(retargetId);
+  let withPlaceholder = trimmed.replace(CLICK_ID_PLACEHOLDER, encodeURIComponent(clickId));
+
+  try {
+    const parsed = new URL(withPlaceholder);
+    parsed.searchParams.set("irclickid", clickId);
+    return { url: parsed.toString(), clickId };
+  } catch (err) {
+    // Fallback for non-absolute URLs or strings new URL cannot parse.
+  }
+
+  const separator = withPlaceholder.includes("?")
+    ? withPlaceholder.endsWith("?") || withPlaceholder.endsWith("&")
+      ? ""
+      : "&"
+    : "?";
+  const appended = `${withPlaceholder}${separator}irclickid=${encodeURIComponent(clickId)}`;
+  return { url: appended, clickId };
 }
 
 function inferDeviceType(ua = "") {
@@ -240,8 +398,7 @@ function matchesDomainRule(pageUrl, domainRule) {
   if (!pageHostname) return false;
 
   const { hostname: ruleHost, path: rulePath } = normalizedRule;
-  const hostMatches =
-    pageHostname === ruleHost || pageHostname.endsWith(`.${ruleHost}`);
+  const hostMatches = pageHostname === ruleHost || pageHostname.endsWith(`.${ruleHost}`);
   if (!hostMatches) return false;
 
   if (rulePath) {
@@ -254,75 +411,200 @@ function matchesDomainRule(pageUrl, domainRule) {
   return true;
 }
 
-async function selectAdPlan(pageUrl = "", retargetId) {
+async function loadCampaigns(supabase) {
+  if (!supabase) return [];
+  const now = Date.now();
+  if (cachedCampaigns && cachedCampaignExpiry > now) {
+    return cachedCampaigns;
+  }
+
   try {
     const { data, error } = await supabase
       .from("campaigns")
-      .select("*")
+      .select("id,status,audience_rules,ad_url,iframe_width,iframe_height,iframe_style,iframe_attributes")
       .order("created_at", { ascending: false });
 
     if (error || !Array.isArray(data)) {
-      return null;
-    }
-
-    const url = pageUrl || "";
-    for (const row of data) {
-      if (!row || !isActiveStatus(row.status)) continue;
-
-      const rules = row.audience_rules || {};
-      const regexRule = rules.regex;
-      const domainRule = rules.domain;
-
-      if (regexRule) {
-        try {
-          const regex = new RegExp(regexRule);
-          if (!regex.test(url)) continue;
-        } catch (err) {
-          continue;
-        }
-      } else if (domainRule && typeof domainRule === "string") {
-        if (!matchesDomainRule(url, domainRule)) continue;
-      }
-
-      const adUrl = typeof row.ad_url === "string"
-        ? row.ad_url.replace("{{_r}}", encodeURIComponent(retargetId))
-        : null;
-      if (!adUrl) continue;
-
-      let campaignId = null;
-      if (row?.id != null) {
-        try {
-          campaignId = String(row.id);
-        } catch (err) {
-          campaignId = null;
-        }
-      }
-
-      return {
-        campaignId,
-        src: adUrl,
-        width: normalizeDimension(row.iframe_width),
-        height: normalizeDimension(row.iframe_height),
-        style:
-          typeof row.iframe_style === "string" && row.iframe_style.length > 0
-            ? row.iframe_style
-            : "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;border:0;",
-        attributes: {
-          referrerpolicy: "no-referrer",
-          scrolling: "no",
-          frameborder: "0",
-          ...normalizeAttributes(row.iframe_attributes)
-        }
-      };
+      console.error("campaign fetch error", error?.message || "unknown error");
+      cachedCampaigns = [];
+    } else {
+      cachedCampaigns = data;
     }
   } catch (err) {
-    console.error("selectAdPlan error", err);
+    console.error("loadCampaigns error", err);
+    cachedCampaigns = [];
+  }
+
+  cachedCampaignExpiry = now + CAMPAIGN_CACHE_TTL_MS;
+  return cachedCampaigns;
+}
+
+async function selectAdPlan({ pageUrl = "", retargetId, supabase }) {
+  const campaigns = await loadCampaigns(supabase);
+  if (!campaigns.length) return null;
+
+  const url = pageUrl || "";
+  for (const row of campaigns) {
+    if (!row || !isActiveStatus(row.status)) continue;
+
+    const rules = normalizeAudienceRuleCollection(parseAudienceRules(row.audience_rules));
+
+    if (rules.regex.length > 0) {
+      let regexMatched = false;
+      for (const pattern of rules.regex) {
+        try {
+          const regex = new RegExp(pattern);
+          if (regex.test(url)) {
+            regexMatched = true;
+            break;
+          }
+        } catch (err) {
+          // ignore malformed pattern
+        }
+      }
+      if (!regexMatched) continue;
+    } else if (rules.domain.length > 0) {
+      let domainMatched = false;
+      for (const domainRule of rules.domain) {
+        if (matchesDomainRule(url, domainRule) || (typeof url === "string" && url.startsWith(domainRule))) {
+          domainMatched = true;
+          break;
+        }
+      }
+      if (!domainMatched) continue;
+    }
+
+    let adUrl = typeof row.ad_url === "string" ? row.ad_url : null;
+    if (!adUrl) continue;
+
+    if (retargetId) {
+      adUrl = adUrl.replace(/\{\{\s*_r\s*\}\}/gi, encodeURIComponent(retargetId));
+    }
+
+    const { url: normalizedAdUrl, clickId } = ensureClickIdInAdUrl(adUrl, retargetId);
+    if (!normalizedAdUrl) continue;
+
+    let campaignId = null;
+    if (row?.id != null) {
+      try {
+        campaignId = String(row.id);
+      } catch (err) {
+        campaignId = null;
+      }
+    }
+
+    return {
+      campaignId,
+      src: normalizedAdUrl,
+      clickId,
+      width: normalizeDimension(row.iframe_width),
+      height: normalizeDimension(row.iframe_height),
+      style:
+        typeof row.iframe_style === "string" && row.iframe_style.length > 0
+          ? row.iframe_style
+          : "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;border:0;",
+      attributes: {
+        referrerpolicy: "no-referrer",
+        scrolling: "no",
+        frameborder: "0",
+        ...normalizeAttributes(row.iframe_attributes)
+      }
+    };
   }
 
   return null;
 }
 
-async function logVisit({ request, cid, pageUrl, screenResolution, visitCount, retargetId, campaignId }) {
+function decodeLastClick(value) {
+  if (typeof value !== "string" || !value) return null;
+  try {
+    const decoded = atob(value);
+    const parsed = JSON.parse(decoded);
+    if (parsed && typeof parsed === "object") {
+      return parsed;
+    }
+  } catch (err) {
+    // ignore malformed cookie
+  }
+  return null;
+}
+
+function encodeLastClickCookie(value) {
+  try {
+    return btoa(JSON.stringify(value));
+  } catch (err) {
+    return null;
+  }
+}
+
+function extractLastClick({ pageUrl, referer }) {
+  const page = tryParseUrl(pageUrl);
+  const ref = tryParseUrl(referer);
+  const params = page?.searchParams;
+  let clickId = null;
+  let clickKey = null;
+
+  if (params) {
+    for (const key of CLICK_ID_PARAMS) {
+      const candidate = params.get(key);
+      if (candidate) {
+        clickId = candidate;
+        clickKey = key;
+        break;
+      }
+    }
+  }
+
+  const utmSource = params?.get("utm_source") || null;
+  const utmMedium = params?.get("utm_medium") || null;
+  const utmCampaign = params?.get("utm_campaign") || null;
+
+  if (!clickId && ref && page && ref.hostname !== page.hostname) {
+    clickId = ref.hostname;
+    clickKey = "referer";
+  }
+
+  if (!clickId) return null;
+
+  return {
+    id: clickId,
+    key: clickKey,
+    source: utmSource || (ref?.hostname || null),
+    medium: utmMedium,
+    campaign: utmCampaign,
+    ts: Date.now()
+  };
+}
+
+function buildAdPlanLastClick(adPlan) {
+  if (!adPlan || typeof adPlan.clickId !== "string" || !adPlan.clickId) {
+    return null;
+  }
+
+  const parsed = tryParseUrl(adPlan.src);
+  const hostname = parsed?.hostname || null;
+
+  return {
+    id: adPlan.clickId,
+    key: "irclickid",
+    source: hostname,
+    medium: "retargeting",
+    campaign: adPlan.campaignId || null,
+    ts: Date.now()
+  };
+}
+
+function shouldReplaceLastClick(existing, candidate) {
+  if (!candidate) return false;
+  if (!existing) return true;
+  if (!existing.id) return true;
+  if (candidate.id !== existing.id) return true;
+  if (typeof existing.ts !== "number" || candidate.ts > existing.ts) return true;
+  return false;
+}
+
+async function logVisit({ supabase, request, cid, pageUrl, screenResolution, visitCount, retargetId, campaignId, events, lastClick }) {
+  if (!supabase) return;
   try {
     const headers = request.headers;
     const ip = headers.get("cf-connecting-ip") || "unknown";
@@ -331,29 +613,32 @@ async function logVisit({ request, cid, pageUrl, screenResolution, visitCount, r
     const referrer = headers.get("referer") || null;
     const deviceType = inferDeviceType(userAgent);
 
+    const baseEvent = events && events.length > 0 ? events[0] : null;
+
     const entry = {
-      event: "bootstrap",
-      page_url: pageUrl || referrer || null,
-      referrer,
+      event: baseEvent?.type || "pixel",
+      page_url: baseEvent?.url || pageUrl || referrer || null,
+      referrer: baseEvent?.referrer || referrer,
       user_agent: userAgent,
       ip_address: ip,
       custom_id: cid || null,
       device_type: deviceType,
       browser: null,
       os: null,
-      screen_resolution: screenResolution || null,
+      screen_resolution: screenResolution || baseEvent?.screen || null,
       country,
       region: null,
       city: null,
       custom_metadata: {
         visit_count: visitCount,
-        screen_resolution: screenResolution || null,
+        screen_resolution: screenResolution || baseEvent?.screen || null,
         retarget_id: retargetId,
-        campaign_id: campaignId
+        campaign_id: campaignId,
+        last_click: lastClick || null
       },
       device_info: {
         device_type: deviceType,
-        screen_resolution: screenResolution || null
+        screen_resolution: screenResolution || baseEvent?.screen || null
       },
       os_name: null,
       browser_name: null
@@ -366,6 +651,23 @@ async function logVisit({ request, cid, pageUrl, screenResolution, visitCount, r
   } catch (err) {
     console.error("logVisit error", err);
   }
+}
+
+function sanitizeEvents(events) {
+  if (!Array.isArray(events)) return [];
+  const sanitized = [];
+  for (const item of events) {
+    if (!item || typeof item !== "object") continue;
+    const type = typeof item.type === "string" ? item.type : "event";
+    const url = typeof item.url === "string" ? item.url : null;
+    const referrer = typeof item.referrer === "string" ? item.referrer : null;
+    const title = typeof item.title === "string" ? item.title : null;
+    const ts = typeof item.ts === "number" ? item.ts : Date.now();
+    const extra = typeof item.extra === "object" && item.extra !== null ? item.extra : {};
+    const screen = typeof item.screen === "string" ? item.screen : null;
+    sanitized.push({ type, url, referrer, title, ts, extra, screen });
+  }
+  return sanitized;
 }
 
 export default {
@@ -392,6 +694,15 @@ export default {
       });
     }
 
+    const supabase = (() => {
+      try {
+        return getSupabaseClient(env);
+      } catch (err) {
+        console.error("supabase init error", err);
+        return null;
+      }
+    })();
+
     const cookies = parseCookies(request.headers.get("Cookie") || "");
     let retargetId = cookies["_r"] || generateRetargetId();
     let visitCount = parseInt(cookies["visit_ct"], 10);
@@ -399,21 +710,42 @@ export default {
     visitCount += 1;
 
     const cid = typeof payload.cid === "string" ? payload.cid : null;
-    const pageUrl = typeof payload.u === "string" ? payload.u : null;
-    const screenResolution = typeof payload.sr === "string" ? payload.sr : null;
+    const events = sanitizeEvents(payload.events || []);
+    const primaryEvent = events[0] || null;
+    const pageUrl = typeof payload.url === "string" ? payload.url : primaryEvent?.url || null;
+    const screenResolution = typeof payload.screen === "string" ? payload.screen : primaryEvent?.screen || null;
 
-    const adPlan = await selectAdPlan(pageUrl, retargetId);
+    const refererHeader = request.headers.get("referer") || primaryEvent?.referrer || null;
+    const lastClickCandidate = extractLastClick({ pageUrl, referer: refererHeader });
+    const existingLastClick = decodeLastClick(cookies["lc"]);
+
+    const adPlan = await selectAdPlan({ pageUrl, retargetId, supabase });
+    const adPlanLastClick = buildAdPlanLastClick(adPlan);
+
+    let activeLastClick = existingLastClick;
+    let lastClickToPersist = null;
+
+    if (adPlanLastClick) {
+      activeLastClick = adPlanLastClick;
+      lastClickToPersist = adPlanLastClick;
+    } else if (shouldReplaceLastClick(existingLastClick, lastClickCandidate)) {
+      activeLastClick = lastClickCandidate;
+      lastClickToPersist = lastClickCandidate;
+    }
 
     const logPromise = logVisit({
+      supabase,
       request,
       cid,
       pageUrl,
       screenResolution,
       visitCount,
       retargetId,
-      campaignId: adPlan?.campaignId || null
+      campaignId: adPlan?.campaignId || null,
+      events,
+      lastClick: activeLastClick
     });
-    if (ctx && typeof ctx.waitUntil === "function") {
+    if (ctx && typeof ctx.waitUntil === "function" && logPromise) {
       ctx.waitUntil(logPromise);
     }
 
@@ -429,7 +761,7 @@ export default {
         path: "/",
         httpOnly: true,
         secure: true,
-        sameSite: "None"
+        sameSite: "Lax"
       })
     );
     headers.append(
@@ -439,9 +771,25 @@ export default {
         path: "/",
         httpOnly: true,
         secure: true,
-        sameSite: "None"
+        sameSite: "Lax"
       })
     );
+
+    if (lastClickToPersist) {
+      const encoded = encodeLastClickCookie(lastClickToPersist);
+      if (encoded) {
+        headers.append(
+          "Set-Cookie",
+          serializeCookie("lc", encoded, {
+            maxAge: COOKIE_MAX_AGE,
+            path: "/",
+            httpOnly: true,
+            secure: true,
+            sameSite: "Lax"
+          })
+        );
+      }
+    }
 
     let token = null;
     if (adPlan) {
@@ -467,11 +815,27 @@ export default {
 
     const responseBody = {
       success: true,
-      token
+      token,
+      plan_applied: Boolean(adPlan),
+      events_processed: events.length
     };
 
     if (token) {
       responseBody.frame_src = `${frameOrigin}/frame?token=${encodeURIComponent(token)}`;
+    }
+
+    if (activeLastClick) {
+      responseBody.last_click = {
+        id: activeLastClick.id,
+        source: activeLastClick.source,
+        medium: activeLastClick.medium,
+        campaign: activeLastClick.campaign,
+        key: activeLastClick.key
+      };
+    }
+
+    if (pageUrl) {
+      responseBody.page = pageUrl;
     }
 
     return new Response(JSON.stringify(responseBody), {

@@ -1,31 +1,7 @@
 import { supabase } from "./lib/supabase.js";
-import { base64UrlEncode, encodeToken } from "./lib/token.js";
+import { base64UrlEncode } from "./lib/token.js";
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // one year
-const TOKEN_TTL_SECONDS = 60 * 5; // five minutes
-
-function normalizeForJson(value) {
-  if (typeof value === "bigint") {
-    const asNumber = Number(value);
-    return Number.isSafeInteger(asNumber) ? asNumber : value.toString();
-  }
-
-  if (Array.isArray(value)) {
-    return value.map(normalizeForJson);
-  }
-
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value);
-    const normalized = {};
-    for (const [key, val] of entries) {
-      if (val === undefined) continue;
-      normalized[key] = normalizeForJson(val);
-    }
-    return normalized;
-  }
-
-  return value;
-}
 
 function normalizeDimension(value) {
   if (value == null) return 0;
@@ -76,27 +52,32 @@ function isActiveStatus(value) {
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
     if (!normalized) return false;
-    return ["true", "t", "1", "yes", "y"].includes(normalized);
+
+    if (["true", "t", "1", "yes", "y"].includes(normalized)) {
+      return true;
+    }
+
+    if (["active", "enabled", "enable", "live", "running"].includes(normalized)) {
+      return true;
+    }
+
+    if (["false", "f", "0", "no", "n", "inactive", "disabled", "paused", "stopped"].includes(normalized)) {
+      return false;
+    }
+
+    return false;
   }
 
   if (typeof value === "number") {
-    return value === 1;
+    if (!Number.isFinite(value)) return false;
+    return value > 0;
   }
 
   if (typeof value === "bigint") {
-    return value === 1n;
+    return value > 0n;
   }
 
   return false;
-}
-
-function generateNonce() {
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    return base64UrlEncode(bytes);
-  }
-  return base64UrlEncode(Math.random().toString(36).slice(2));
 }
 
 function parseCookies(header = "") {
@@ -131,27 +112,6 @@ function corsHeaders(origin) {
     headers["Access-Control-Allow-Origin"] = "*";
   }
   return headers;
-}
-
-function deriveFrameOrigin(request, env) {
-  const requestOrigin = request.headers.get("Origin");
-  if (requestOrigin) return requestOrigin.replace(/\/$/, "");
-
-  for (const key of ["FRAME_ORIGIN", "BOOTSTRAP_FRAME_ORIGIN", "APP_ORIGIN"]) {
-    const candidate = env?.[key];
-    if (typeof candidate === "string" && candidate.length > 0) {
-      return candidate.replace(/\/$/, "");
-    }
-  }
-
-  try {
-    const url = new URL(request.url);
-    return url.origin.replace(/\/$/, "");
-  } catch (err) {
-    console.error("deriveFrameOrigin error", err);
-  }
-
-  return "https://retarglow.com";
 }
 
 function generateRetargetId() {
@@ -369,9 +329,8 @@ async function logVisit({ request, cid, pageUrl, screenResolution, visitCount, r
 }
 
 export default {
-  async fetch(request, env, ctx) {
-    const frameOrigin = deriveFrameOrigin(request, env);
-    const origin = request.headers.get("Origin") || frameOrigin;
+  async fetch(request, _env, ctx) {
+    const origin = request.headers.get("Origin");
     const baseHeaders = corsHeaders(origin);
 
     if (request.method === "OPTIONS") {
@@ -443,35 +402,30 @@ export default {
       })
     );
 
-    let token = null;
-    if (adPlan) {
-      try {
-        const payload = normalizeForJson({
-          nonce: generateNonce(),
-          exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
-          plan: {
-            campaignId: adPlan.campaignId,
-            src: adPlan.src,
-            width: adPlan.width,
-            height: adPlan.height,
-            style: adPlan.style,
-            attributes: adPlan.attributes
-          }
-        });
-        token = await encodeToken(env, payload);
-      } catch (err) {
-        console.error("token signing error", err);
-        token = null;
-      }
-    }
-
     const responseBody = {
       success: true,
-      token
+      token: null
     };
 
-    if (token) {
-      responseBody.frame_src = `${frameOrigin}/frame?token=${encodeURIComponent(token)}`;
+    if (adPlan) {
+      const { campaignId, ...framePlan } = adPlan;
+      responseBody.ad_url = framePlan.src;
+      if (campaignId != null) {
+        responseBody.campaign_id = campaignId;
+      }
+
+      try {
+        const encodedPlan = base64UrlEncode(JSON.stringify({ plan: framePlan }));
+        const frameUrl = new URL("/frame", request.url);
+        frameUrl.protocol = "https:";
+        frameUrl.port = "";
+        frameUrl.searchParams.set("plan", encodedPlan);
+
+        responseBody.plan = encodedPlan;
+        responseBody.frame_src = frameUrl.toString();
+      } catch (err) {
+        console.error("Failed to encode campaign plan", err);
+      }
     }
 
     return new Response(JSON.stringify(responseBody), {

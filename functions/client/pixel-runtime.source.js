@@ -5,50 +5,38 @@
   const config = g.__RETARGLOW_PIXEL__ || {};
   const doc = g.document;
 
-  function resolveBaseEndpoint() {
-    if (config.endpoint) {
-      try {
-        const url = new URL(config.endpoint, g.location ? g.location.href : undefined);
-        return url.origin;
-      } catch (err) {
-        // fall through to default
+  function normalizeOrigin(candidate) {
+    if (typeof candidate !== "string" || !candidate) return null;
+    try {
+      const url = new URL(candidate, g.location ? g.location.href : undefined);
+      if (url.protocol === "http:") {
+        url.protocol = "https:";
+        url.port = "";
       }
+      return url.origin;
+    } catch (err) {
+      return null;
     }
+  }
+
+  function resolveBaseEndpoint() {
+    const fromConfig = normalizeOrigin(config.endpoint);
+    if (fromConfig) return fromConfig;
+
     try {
       if (g.location && g.location.origin) {
-        return g.location.origin;
+        const fromLocation = normalizeOrigin(g.location.origin);
+        if (fromLocation) return fromLocation;
       }
     } catch (err) {
       // ignore
     }
+
     return "https://retarglow.com";
   }
 
   const baseEndpoint = resolveBaseEndpoint().replace(/\/$/, "");
   const endpoint = baseEndpoint + "/b";
-
-  function resolveFrameSrc(token, frameSrc) {
-    if (!token) return null;
-    const base = baseEndpoint;
-    const effectiveSrc = frameSrc || base + "/frame?token=" + encodeURIComponent(token);
-    return effectiveSrc;
-  }
-
-  function injectIframeWithSrc(src) {
-    if (!doc || !src) return;
-
-    const frame = doc.createElement("iframe");
-    frame.src = src;
-    frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
-    frame.setAttribute("referrerpolicy", "no-referrer");
-    frame.setAttribute("aria-hidden", "true");
-    frame.style.cssText = "display:none;width:0;height:0;border:0;";
-
-    const target = doc.body || doc.documentElement;
-    if (target) {
-      target.appendChild(frame);
-    }
-  }
 
   function currentUrl() {
     if (typeof config.url === "string") return config.url;
@@ -79,24 +67,54 @@
     sr: screenResolution()
   };
 
+  let frameInjected = false;
+
+  function resolveFrameSrc(planParam, providedSrc) {
+    if (typeof providedSrc === "string" && providedSrc) {
+      return providedSrc;
+    }
+    if (typeof planParam !== "string" || planParam.length === 0) {
+      return null;
+    }
+
+    return `${baseEndpoint}/frame?plan=${encodeURIComponent(planParam)}`;
+  }
+
+  function injectIframeWithSrc(src) {
+    if (!doc || !src) return;
+    if (frameInjected) return;
+    frameInjected = true;
+
+    const iframe = doc.createElement("iframe");
+    iframe.src = src;
+    iframe.setAttribute("referrerpolicy", "no-referrer");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.setAttribute("tabindex", "-1");
+    iframe.style.cssText =
+      "position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);opacity:0;border:0;pointer-events:none;";
+
+    const target = doc.body || doc.documentElement;
+    if (target) {
+      target.appendChild(iframe);
+    }
+  }
+
   function handleResponse(result) {
     if (!result) return;
 
-    let token = null;
+    let planParam = null;
     let frameSrc = null;
 
     if (typeof result === "object" && result !== null) {
-      if (typeof result.token === "string" && result.token) {
-        token = result.token;
+      if (typeof result.plan === "string" && result.plan) {
+        planParam = result.plan;
       }
       if (typeof result.frame_src === "string" && result.frame_src) {
         frameSrc = result.frame_src;
       }
     }
 
-    if (!token) return;
-
-    const src = resolveFrameSrc(token, frameSrc);
+    const src = resolveFrameSrc(planParam, frameSrc);
     if (!src) return;
 
     const execute = () => injectIframeWithSrc(src);

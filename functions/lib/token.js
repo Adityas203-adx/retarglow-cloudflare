@@ -57,7 +57,7 @@ function base64UrlDecodeToBytes(input = "") {
   return bytes;
 }
 
-function base64UrlDecodeToString(input = "") {
+export function base64UrlDecodeToString(input = "") {
   const bytes = base64UrlDecodeToBytes(input);
   return decoder.decode(bytes);
 }

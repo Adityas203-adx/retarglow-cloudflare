@@ -1,4 +1,4 @@
-import { verifyToken } from "./lib/token.js";
+import { base64UrlDecodeToString } from "./lib/token.js";
 
 /**
  * HTML-escapes a string to prevent attribute/body injection when we echo
@@ -105,35 +105,45 @@ function buildHtml(bodyContent) {
 }
 
 /**
- * Validates the signed token and returns the embedded campaign plan if the
- * token is authentic, has not expired, and contains a plan payload.
+ * Decodes the plan query parameter and extracts the embedded campaign plan.
  *
- * @param {Env} env
- * @param {string} token
- * @returns {Promise<Record<string, any>>}
+ * @param {string} planParam
+ * @returns {Record<string, any>}
  */
-async function validatePlanToken(env, token) {
-  const payload = await verifyToken(env, token);
-  const exp = payload?.exp;
-  const now = Math.floor(Date.now() / 1000);
-  if (typeof exp !== "number") {
-    throw new Error("Token missing expiration");
-  }
-  if (exp < now) {
-    throw new Error("Token expired");
+function extractPlanFromParam(planParam) {
+  if (typeof planParam !== "string" || planParam.length === 0) {
+    throw new Error("Plan query parameter is required");
   }
 
-  if (!payload?.plan || typeof payload.plan !== "object") {
-    throw new Error("Token missing campaign plan");
+  let decoded;
+  try {
+    decoded = base64UrlDecodeToString(planParam);
+  } catch (err) {
+    throw new Error("Invalid plan encoding");
   }
 
-  return payload.plan;
+  let envelope;
+  try {
+    envelope = JSON.parse(decoded);
+  } catch (err) {
+    throw new Error("Invalid plan payload");
+  }
+
+  const plan = envelope?.plan && typeof envelope.plan === "object"
+    ? envelope.plan
+    : envelope;
+
+  if (!plan || typeof plan !== "object") {
+    throw new Error("Plan payload missing campaign plan");
+  }
+
+  return plan;
 }
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const tokenParam = url.searchParams.get("token");
+    const planParam = url.searchParams.get("plan");
     const headers = new Headers({
       "Content-Type": "text/html; charset=UTF-8",
       "Cache-Control": "no-store"
@@ -142,18 +152,14 @@ export default {
     let plan = null;
     let errorMessage = null;
 
-    if (tokenParam) {
-      try {
-        plan = await validatePlanToken(env, tokenParam);
-      } catch (err) {
-        errorMessage = err?.message || "Invalid token";
-      }
-    } else {
-      errorMessage = "Token query parameter is required";
+    try {
+      plan = extractPlanFromParam(planParam);
+    } catch (err) {
+      errorMessage = err?.message || "Invalid plan";
     }
 
     if (!plan) {
-      const body = buildHtml(`<p>${escapeHtml(errorMessage || "Invalid or expired token.")}</p>`);
+      const body = buildHtml(`<p>${escapeHtml(errorMessage || "Invalid or expired plan.")}</p>`);
       return new Response(body, { status: 400, headers });
     }
 

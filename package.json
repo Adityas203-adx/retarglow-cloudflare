@@ -8,8 +8,7 @@
     "lint": "node scripts/lint.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.50.0",
-    "node-fetch": "^3.3.2"
+    "@supabase/supabase-js": "^2.50.0"
   },
   "devDependencies": {
     "esbuild": "^0.21.5"

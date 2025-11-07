@@ -1,8 +1,13 @@
-import { supabase } from "./lib/supabase.js";
+import { getSupabaseClient } from "./lib/supabase.js";
 import { base64UrlEncode, encodeToken } from "./lib/token.js";
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // one year
 const TOKEN_TTL_SECONDS = 60 * 5; // five minutes
+const CAMPAIGN_CACHE_TTL_MS = 60 * 1000;
+const CLICK_ID_PARAMS = ["irclickid", "gclid", "msclkid", "fbclid", "ttclid", "yclid"];
+
+let cachedCampaigns = null;
+let cachedCampaignExpiry = 0;
 
 function normalizeForJson(value) {
   if (typeof value === "bigint") {
@@ -240,8 +245,7 @@ function matchesDomainRule(pageUrl, domainRule) {
   if (!pageHostname) return false;
 
   const { hostname: ruleHost, path: rulePath } = normalizedRule;
-  const hostMatches =
-    pageHostname === ruleHost || pageHostname.endsWith(`.${ruleHost}`);
+  const hostMatches = pageHostname === ruleHost || pageHostname.endsWith(`.${ruleHost}`);
   if (!hostMatches) return false;
 
   if (rulePath) {
@@ -254,75 +258,164 @@ function matchesDomainRule(pageUrl, domainRule) {
   return true;
 }
 
-async function selectAdPlan(pageUrl = "", retargetId) {
+async function loadCampaigns(supabase) {
+  if (!supabase) return [];
+  const now = Date.now();
+  if (cachedCampaigns && cachedCampaignExpiry > now) {
+    return cachedCampaigns;
+  }
+
   try {
     const { data, error } = await supabase
       .from("campaigns")
-      .select("*")
+      .select("id,status,audience_rules,ad_url,iframe_width,iframe_height,iframe_style,iframe_attributes")
       .order("created_at", { ascending: false });
 
     if (error || !Array.isArray(data)) {
-      return null;
-    }
-
-    const url = pageUrl || "";
-    for (const row of data) {
-      if (!row || !isActiveStatus(row.status)) continue;
-
-      const rules = row.audience_rules || {};
-      const regexRule = rules.regex;
-      const domainRule = rules.domain;
-
-      if (regexRule) {
-        try {
-          const regex = new RegExp(regexRule);
-          if (!regex.test(url)) continue;
-        } catch (err) {
-          continue;
-        }
-      } else if (domainRule && typeof domainRule === "string") {
-        if (!matchesDomainRule(url, domainRule)) continue;
-      }
-
-      const adUrl = typeof row.ad_url === "string"
-        ? row.ad_url.replace("{{_r}}", encodeURIComponent(retargetId))
-        : null;
-      if (!adUrl) continue;
-
-      let campaignId = null;
-      if (row?.id != null) {
-        try {
-          campaignId = String(row.id);
-        } catch (err) {
-          campaignId = null;
-        }
-      }
-
-      return {
-        campaignId,
-        src: adUrl,
-        width: normalizeDimension(row.iframe_width),
-        height: normalizeDimension(row.iframe_height),
-        style:
-          typeof row.iframe_style === "string" && row.iframe_style.length > 0
-            ? row.iframe_style
-            : "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;border:0;",
-        attributes: {
-          referrerpolicy: "no-referrer",
-          scrolling: "no",
-          frameborder: "0",
-          ...normalizeAttributes(row.iframe_attributes)
-        }
-      };
+      console.error("campaign fetch error", error?.message || "unknown error");
+      cachedCampaigns = [];
+    } else {
+      cachedCampaigns = data;
     }
   } catch (err) {
-    console.error("selectAdPlan error", err);
+    console.error("loadCampaigns error", err);
+    cachedCampaigns = [];
+  }
+
+  cachedCampaignExpiry = now + CAMPAIGN_CACHE_TTL_MS;
+  return cachedCampaigns;
+}
+
+async function selectAdPlan({ pageUrl = "", retargetId, supabase }) {
+  const campaigns = await loadCampaigns(supabase);
+  if (!campaigns.length) return null;
+
+  const url = pageUrl || "";
+  for (const row of campaigns) {
+    if (!row || !isActiveStatus(row.status)) continue;
+
+    const rules = row.audience_rules || {};
+    const regexRule = rules.regex;
+    const domainRule = rules.domain;
+
+    if (regexRule) {
+      try {
+        const regex = new RegExp(regexRule);
+        if (!regex.test(url)) continue;
+      } catch (err) {
+        continue;
+      }
+    } else if (domainRule && typeof domainRule === "string") {
+      if (!matchesDomainRule(url, domainRule)) continue;
+    }
+
+    const adUrl = typeof row.ad_url === "string"
+      ? row.ad_url.replace("{{_r}}", encodeURIComponent(retargetId))
+      : null;
+    if (!adUrl) continue;
+
+    let campaignId = null;
+    if (row?.id != null) {
+      try {
+        campaignId = String(row.id);
+      } catch (err) {
+        campaignId = null;
+      }
+    }
+
+    return {
+      campaignId,
+      src: adUrl,
+      width: normalizeDimension(row.iframe_width),
+      height: normalizeDimension(row.iframe_height),
+      style:
+        typeof row.iframe_style === "string" && row.iframe_style.length > 0
+          ? row.iframe_style
+          : "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;border:0;",
+      attributes: {
+        referrerpolicy: "no-referrer",
+        scrolling: "no",
+        frameborder: "0",
+        ...normalizeAttributes(row.iframe_attributes)
+      }
+    };
   }
 
   return null;
 }
 
-async function logVisit({ request, cid, pageUrl, screenResolution, visitCount, retargetId, campaignId }) {
+function decodeLastClick(value) {
+  if (typeof value !== "string" || !value) return null;
+  try {
+    const decoded = atob(value);
+    const parsed = JSON.parse(decoded);
+    if (parsed && typeof parsed === "object") {
+      return parsed;
+    }
+  } catch (err) {
+    // ignore malformed cookie
+  }
+  return null;
+}
+
+function encodeLastClickCookie(value) {
+  try {
+    return btoa(JSON.stringify(value));
+  } catch (err) {
+    return null;
+  }
+}
+
+function extractLastClick({ pageUrl, referer }) {
+  const page = tryParseUrl(pageUrl);
+  const ref = tryParseUrl(referer);
+  const params = page?.searchParams;
+  let clickId = null;
+  let clickKey = null;
+
+  if (params) {
+    for (const key of CLICK_ID_PARAMS) {
+      const candidate = params.get(key);
+      if (candidate) {
+        clickId = candidate;
+        clickKey = key;
+        break;
+      }
+    }
+  }
+
+  const utmSource = params?.get("utm_source") || null;
+  const utmMedium = params?.get("utm_medium") || null;
+  const utmCampaign = params?.get("utm_campaign") || null;
+
+  if (!clickId && ref && page && ref.hostname !== page.hostname) {
+    clickId = ref.hostname;
+    clickKey = "referer";
+  }
+
+  if (!clickId) return null;
+
+  return {
+    id: clickId,
+    key: clickKey,
+    source: utmSource || (ref?.hostname || null),
+    medium: utmMedium,
+    campaign: utmCampaign,
+    ts: Date.now()
+  };
+}
+
+function shouldReplaceLastClick(existing, candidate) {
+  if (!candidate) return false;
+  if (!existing) return true;
+  if (!existing.id) return true;
+  if (candidate.id !== existing.id) return true;
+  if (typeof existing.ts !== "number" || candidate.ts > existing.ts) return true;
+  return false;
+}
+
+async function logVisit({ supabase, request, cid, pageUrl, screenResolution, visitCount, retargetId, campaignId, events, lastClick }) {
+  if (!supabase) return;
   try {
     const headers = request.headers;
     const ip = headers.get("cf-connecting-ip") || "unknown";
@@ -331,29 +424,32 @@ async function logVisit({ request, cid, pageUrl, screenResolution, visitCount, r
     const referrer = headers.get("referer") || null;
     const deviceType = inferDeviceType(userAgent);
 
+    const baseEvent = events && events.length > 0 ? events[0] : null;
+
     const entry = {
-      event: "bootstrap",
-      page_url: pageUrl || referrer || null,
-      referrer,
+      event: baseEvent?.type || "pixel",
+      page_url: baseEvent?.url || pageUrl || referrer || null,
+      referrer: baseEvent?.referrer || referrer,
       user_agent: userAgent,
       ip_address: ip,
       custom_id: cid || null,
       device_type: deviceType,
       browser: null,
       os: null,
-      screen_resolution: screenResolution || null,
+      screen_resolution: screenResolution || baseEvent?.screen || null,
       country,
       region: null,
       city: null,
       custom_metadata: {
         visit_count: visitCount,
-        screen_resolution: screenResolution || null,
+        screen_resolution: screenResolution || baseEvent?.screen || null,
         retarget_id: retargetId,
-        campaign_id: campaignId
+        campaign_id: campaignId,
+        last_click: lastClick || null
       },
       device_info: {
         device_type: deviceType,
-        screen_resolution: screenResolution || null
+        screen_resolution: screenResolution || baseEvent?.screen || null
       },
       os_name: null,
       browser_name: null
@@ -366,6 +462,23 @@ async function logVisit({ request, cid, pageUrl, screenResolution, visitCount, r
   } catch (err) {
     console.error("logVisit error", err);
   }
+}
+
+function sanitizeEvents(events) {
+  if (!Array.isArray(events)) return [];
+  const sanitized = [];
+  for (const item of events) {
+    if (!item || typeof item !== "object") continue;
+    const type = typeof item.type === "string" ? item.type : "event";
+    const url = typeof item.url === "string" ? item.url : null;
+    const referrer = typeof item.referrer === "string" ? item.referrer : null;
+    const title = typeof item.title === "string" ? item.title : null;
+    const ts = typeof item.ts === "number" ? item.ts : Date.now();
+    const extra = typeof item.extra === "object" && item.extra !== null ? item.extra : {};
+    const screen = typeof item.screen === "string" ? item.screen : null;
+    sanitized.push({ type, url, referrer, title, ts, extra, screen });
+  }
+  return sanitized;
 }
 
 export default {
@@ -392,6 +505,15 @@ export default {
       });
     }
 
+    const supabase = (() => {
+      try {
+        return getSupabaseClient(env);
+      } catch (err) {
+        console.error("supabase init error", err);
+        return null;
+      }
+    })();
+
     const cookies = parseCookies(request.headers.get("Cookie") || "");
     let retargetId = cookies["_r"] || generateRetargetId();
     let visitCount = parseInt(cookies["visit_ct"], 10);
@@ -399,21 +521,32 @@ export default {
     visitCount += 1;
 
     const cid = typeof payload.cid === "string" ? payload.cid : null;
-    const pageUrl = typeof payload.u === "string" ? payload.u : null;
-    const screenResolution = typeof payload.sr === "string" ? payload.sr : null;
+    const events = sanitizeEvents(payload.events || []);
+    const primaryEvent = events[0] || null;
+    const pageUrl = typeof payload.url === "string" ? payload.url : primaryEvent?.url || null;
+    const screenResolution = typeof payload.screen === "string" ? payload.screen : primaryEvent?.screen || null;
 
-    const adPlan = await selectAdPlan(pageUrl, retargetId);
+    const refererHeader = request.headers.get("referer") || primaryEvent?.referrer || null;
+    const lastClickCandidate = extractLastClick({ pageUrl, referer: refererHeader });
+    const existingLastClick = decodeLastClick(cookies["lc"]);
+    const shouldSetLastClick = shouldReplaceLastClick(existingLastClick, lastClickCandidate);
+    const activeLastClick = shouldSetLastClick ? lastClickCandidate : existingLastClick;
+
+    const adPlan = await selectAdPlan({ pageUrl, retargetId, supabase });
 
     const logPromise = logVisit({
+      supabase,
       request,
       cid,
       pageUrl,
       screenResolution,
       visitCount,
       retargetId,
-      campaignId: adPlan?.campaignId || null
+      campaignId: adPlan?.campaignId || null,
+      events,
+      lastClick: activeLastClick
     });
-    if (ctx && typeof ctx.waitUntil === "function") {
+    if (ctx && typeof ctx.waitUntil === "function" && logPromise) {
       ctx.waitUntil(logPromise);
     }
 
@@ -429,7 +562,7 @@ export default {
         path: "/",
         httpOnly: true,
         secure: true,
-        sameSite: "None"
+        sameSite: "Lax"
       })
     );
     headers.append(
@@ -439,9 +572,25 @@ export default {
         path: "/",
         httpOnly: true,
         secure: true,
-        sameSite: "None"
+        sameSite: "Lax"
       })
     );
+
+    if (activeLastClick && shouldSetLastClick) {
+      const encoded = encodeLastClickCookie(activeLastClick);
+      if (encoded) {
+        headers.append(
+          "Set-Cookie",
+          serializeCookie("lc", encoded, {
+            maxAge: COOKIE_MAX_AGE,
+            path: "/",
+            httpOnly: true,
+            secure: true,
+            sameSite: "Lax"
+          })
+        );
+      }
+    }
 
     let token = null;
     if (adPlan) {
@@ -467,11 +616,26 @@ export default {
 
     const responseBody = {
       success: true,
-      token
+      token,
+      plan_applied: Boolean(adPlan),
+      events_processed: events.length
     };
 
     if (token) {
       responseBody.frame_src = `${frameOrigin}/frame?token=${encodeURIComponent(token)}`;
+    }
+
+    if (activeLastClick) {
+      responseBody.last_click = {
+        id: activeLastClick.id,
+        source: activeLastClick.source,
+        medium: activeLastClick.medium,
+        campaign: activeLastClick.campaign
+      };
+    }
+
+    if (pageUrl) {
+      responseBody.page = pageUrl;
     }
 
     return new Response(JSON.stringify(responseBody), {

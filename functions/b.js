@@ -417,6 +417,8 @@ export default {
       try {
         const encodedPlan = base64UrlEncode(JSON.stringify({ plan: framePlan }));
         const frameUrl = new URL("/frame", request.url);
+        frameUrl.protocol = "https:";
+        frameUrl.port = "";
         frameUrl.searchParams.set("plan", encodedPlan);
 
         responseBody.plan = encodedPlan;

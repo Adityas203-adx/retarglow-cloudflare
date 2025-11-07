@@ -5,22 +5,33 @@
   const config = g.__RETARGLOW_PIXEL__ || {};
   const doc = g.document;
 
-  function resolveBaseEndpoint() {
-    if (config.endpoint) {
-      try {
-        const url = new URL(config.endpoint, g.location ? g.location.href : undefined);
-        return url.origin;
-      } catch (err) {
-        // fall through to default
+  function normalizeOrigin(candidate) {
+    if (typeof candidate !== "string" || !candidate) return null;
+    try {
+      const url = new URL(candidate, g.location ? g.location.href : undefined);
+      if (url.protocol === "http:") {
+        url.protocol = "https:";
+        url.port = "";
       }
+      return url.origin;
+    } catch (err) {
+      return null;
     }
+  }
+
+  function resolveBaseEndpoint() {
+    const fromConfig = normalizeOrigin(config.endpoint);
+    if (fromConfig) return fromConfig;
+
     try {
       if (g.location && g.location.origin) {
-        return g.location.origin;
+        const fromLocation = normalizeOrigin(g.location.origin);
+        if (fromLocation) return fromLocation;
       }
     } catch (err) {
       // ignore
     }
+
     return "https://retarglow.com";
   }
 

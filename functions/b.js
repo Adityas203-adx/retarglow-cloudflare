@@ -66,6 +66,94 @@ function parseAudienceRules(value) {
   }
 }
 
+function toArray(value) {
+  if (value == null) return [];
+  if (Array.isArray(value)) return value;
+  return [value];
+}
+
+function extractRuleValues(source, keys) {
+  if (!source || typeof source !== "object") return [];
+
+  const values = [];
+  for (const key of keys) {
+    if (!(key in source)) continue;
+    const raw = source[key];
+    const queue = [...toArray(raw)];
+    while (queue.length > 0) {
+      const entry = queue.shift();
+      if (entry == null) continue;
+      if (typeof entry === "string") {
+        const trimmed = entry.trim();
+        if (trimmed) values.push(trimmed);
+        continue;
+      }
+      if (Array.isArray(entry)) {
+        queue.push(...entry);
+        continue;
+      }
+      if (typeof entry === "object") {
+        const nested = extractRuleValues(entry, [
+          "value",
+          "pattern",
+          "regex",
+          "domain",
+          "url"
+        ]);
+        if (nested.length > 0) values.push(...nested);
+      }
+    }
+  }
+
+  return values;
+}
+
+function normalizeAudienceRuleCollection(rules) {
+  if (!rules || typeof rules !== "object") {
+    return { regex: [], domain: [] };
+  }
+
+  const regexValues = new Set();
+  const domainValues = new Set();
+
+  const addRegex = value => {
+    if (typeof value !== "string") return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    regexValues.add(trimmed);
+  };
+
+  const addDomain = value => {
+    if (typeof value !== "string") return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    domainValues.add(trimmed);
+  };
+
+  const regexEntries = extractRuleValues(rules, ["regex", "regexes", "pattern", "patterns"]);
+  for (const value of regexEntries) addRegex(value);
+
+  const domainEntries = extractRuleValues(rules, ["domain", "domains", "host", "hosts"]);
+  for (const value of domainEntries) addDomain(value);
+
+  if (Array.isArray(rules.rules)) {
+    for (const entry of rules.rules) {
+      if (!entry || typeof entry !== "object") continue;
+      const type = typeof entry.type === "string" ? entry.type.trim().toLowerCase() : "";
+      if (type === "regex" || type === "pattern") {
+        extractRuleValues(entry, ["value", "pattern", "regex"]).forEach(addRegex);
+      } else if (type === "domain" || type === "host") {
+        extractRuleValues(entry, ["value", "domain", "url", "host"]).forEach(addDomain);
+      }
+    }
+  }
+
+  return {
+    regex: Array.from(regexValues),
+    domain: Array.from(domainValues)
+  };
+}
+
 function normalizeAttributes(attributes) {
   if (!attributes || typeof attributes !== "object") {
     return {};
@@ -307,19 +395,31 @@ async function selectAdPlan({ pageUrl = "", retargetId, supabase }) {
   for (const row of campaigns) {
     if (!row || !isActiveStatus(row.status)) continue;
 
-    const rules = parseAudienceRules(row.audience_rules);
-    const regexRule = rules.regex;
-    const domainRule = rules.domain;
+    const rules = normalizeAudienceRuleCollection(parseAudienceRules(row.audience_rules));
 
-    if (regexRule) {
-      try {
-        const regex = new RegExp(regexRule);
-        if (!regex.test(url)) continue;
-      } catch (err) {
-        continue;
+    if (rules.regex.length > 0) {
+      let regexMatched = false;
+      for (const pattern of rules.regex) {
+        try {
+          const regex = new RegExp(pattern);
+          if (regex.test(url)) {
+            regexMatched = true;
+            break;
+          }
+        } catch (err) {
+          // ignore malformed pattern
+        }
       }
-    } else if (domainRule && typeof domainRule === "string") {
-      if (!matchesDomainRule(url, domainRule)) continue;
+      if (!regexMatched) continue;
+    } else if (rules.domain.length > 0) {
+      let domainMatched = false;
+      for (const domainRule of rules.domain) {
+        if (matchesDomainRule(url, domainRule) || (typeof url === "string" && url.startsWith(domainRule))) {
+          domainMatched = true;
+          break;
+        }
+      }
+      if (!domainMatched) continue;
     }
 
     const adUrl = typeof row.ad_url === "string"

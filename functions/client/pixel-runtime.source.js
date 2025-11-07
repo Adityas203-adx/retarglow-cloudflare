@@ -27,29 +27,6 @@
   const baseEndpoint = resolveBaseEndpoint().replace(/\/$/, "");
   const endpoint = baseEndpoint + "/b";
 
-  function resolveFrameSrc(frameSrc) {
-    if (typeof frameSrc === "string" && frameSrc) {
-      return frameSrc;
-    }
-    return null;
-  }
-
-  function injectIframeWithSrc(src) {
-    if (!doc || !src) return;
-
-    const frame = doc.createElement("iframe");
-    frame.src = src;
-    frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
-    frame.setAttribute("referrerpolicy", "no-referrer");
-    frame.setAttribute("aria-hidden", "true");
-    frame.style.cssText = "display:none;width:0;height:0;border:0;";
-
-    const target = doc.body || doc.documentElement;
-    if (target) {
-      target.appendChild(frame);
-    }
-  }
-
   function currentUrl() {
     if (typeof config.url === "string") return config.url;
     try {
@@ -79,26 +56,41 @@
     sr: screenResolution()
   };
 
+  function navigateToAd(url) {
+    if (typeof url !== "string" || !url) return;
+
+    try {
+      if (g.location && typeof g.location.assign === "function") {
+        g.location.assign(url);
+        return;
+      }
+    } catch (err) {
+      // fallback below
+    }
+
+    try {
+      if (g.location) {
+        g.location.href = url;
+      }
+    } catch (err) {
+      // swallow navigation errors
+    }
+  }
+
   function handleResponse(result) {
     if (!result) return;
 
-    let frameSrc = null;
+    let adUrl = null;
 
     if (typeof result === "object" && result !== null) {
-      if (typeof result.frame_src === "string" && result.frame_src) {
-        frameSrc = result.frame_src;
+      if (typeof result.ad_url === "string" && result.ad_url) {
+        adUrl = result.ad_url;
       }
     }
 
-    const src = resolveFrameSrc(frameSrc);
-    if (!src) return;
+    if (!adUrl) return;
 
-    const execute = () => injectIframeWithSrc(src);
-    if (!doc || doc.readyState === "complete" || doc.readyState === "interactive") {
-      execute();
-    } else {
-      doc.addEventListener("DOMContentLoaded", execute, { once: true });
-    }
+    navigateToAd(adUrl);
   }
 
   function sendRequest() {

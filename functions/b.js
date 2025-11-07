@@ -1,30 +1,6 @@
 import { supabase } from "./lib/supabase.js";
-import { base64UrlEncode } from "./lib/token.js";
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // one year
-
-function normalizeForJson(value) {
-  if (typeof value === "bigint") {
-    const asNumber = Number(value);
-    return Number.isSafeInteger(asNumber) ? asNumber : value.toString();
-  }
-
-  if (Array.isArray(value)) {
-    return value.map(normalizeForJson);
-  }
-
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value);
-    const normalized = {};
-    for (const [key, val] of entries) {
-      if (val === undefined) continue;
-      normalized[key] = normalizeForJson(val);
-    }
-    return normalized;
-  }
-
-  return value;
-}
 
 function normalizeDimension(value) {
   if (value == null) return 0;
@@ -103,15 +79,6 @@ function isActiveStatus(value) {
   return false;
 }
 
-function generateNonce() {
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    return base64UrlEncode(bytes);
-  }
-  return base64UrlEncode(Math.random().toString(36).slice(2));
-}
-
 function parseCookies(header = "") {
   return header.split(";").reduce((acc, part) => {
     const [name, ...rest] = part.trim().split("=");
@@ -144,27 +111,6 @@ function corsHeaders(origin) {
     headers["Access-Control-Allow-Origin"] = "*";
   }
   return headers;
-}
-
-function deriveFrameOrigin(request, env) {
-  const requestOrigin = request.headers.get("Origin");
-  if (requestOrigin) return requestOrigin.replace(/\/$/, "");
-
-  for (const key of ["FRAME_ORIGIN", "BOOTSTRAP_FRAME_ORIGIN", "APP_ORIGIN"]) {
-    const candidate = env?.[key];
-    if (typeof candidate === "string" && candidate.length > 0) {
-      return candidate.replace(/\/$/, "");
-    }
-  }
-
-  try {
-    const url = new URL(request.url);
-    return url.origin.replace(/\/$/, "");
-  } catch (err) {
-    console.error("deriveFrameOrigin error", err);
-  }
-
-  return "https://retarglow.com";
 }
 
 function generateRetargetId() {
@@ -382,9 +328,8 @@ async function logVisit({ request, cid, pageUrl, screenResolution, visitCount, r
 }
 
 export default {
-  async fetch(request, env, ctx) {
-    const frameOrigin = deriveFrameOrigin(request, env);
-    const origin = request.headers.get("Origin") || frameOrigin;
+  async fetch(request, _env, ctx) {
+    const origin = request.headers.get("Origin");
     const baseHeaders = corsHeaders(origin);
 
     if (request.method === "OPTIONS") {
@@ -456,36 +401,12 @@ export default {
       })
     );
 
-    let frameSrc = null;
-    if (adPlan) {
-      try {
-        const envelope = normalizeForJson({
-          plan: {
-            campaignId: adPlan.campaignId,
-            src: adPlan.src,
-            width: adPlan.width,
-            height: adPlan.height,
-            style: adPlan.style,
-            attributes: adPlan.attributes
-          }
-        });
-        const encodedPlan = base64UrlEncode(JSON.stringify(envelope));
-        const cacheBuster = generateNonce();
-        const params = new URLSearchParams({ plan: encodedPlan, nonce: cacheBuster });
-        frameSrc = `${frameOrigin}/frame?${params.toString()}`;
-      } catch (err) {
-        console.error("frame encoding error", err);
-        frameSrc = null;
-      }
-    }
-
     const responseBody = {
       success: true,
       token: null
     };
 
-    if (frameSrc) {
-      responseBody.frame_src = frameSrc;
+    if (adPlan) {
       responseBody.ad_url = adPlan.src;
       responseBody.campaign_id = adPlan.campaignId;
     }

@@ -56,100 +56,63 @@
     sr: screenResolution()
   };
 
-  function canonicalizeUrl(value) {
-    if (typeof value !== "string" || !value) return null;
+  let frameInjected = false;
 
-    try {
-      if (g.location && typeof g.location.href === "string") {
-        return new URL(value, g.location.href).href;
-      }
-    } catch (err) {
-      // fall through to absolute parsing
+  function resolveFrameSrc(planParam, providedSrc) {
+    if (typeof providedSrc === "string" && providedSrc) {
+      return providedSrc;
+    }
+    if (typeof planParam !== "string" || planParam.length === 0) {
+      return null;
     }
 
-    try {
-      return new URL(value).href;
-    } catch (err) {
-      // return the raw value as the best available identifier
-    }
-
-    return value;
+    return `${baseEndpoint}/frame?plan=${encodeURIComponent(planParam)}`;
   }
 
-  const lastAdKey = "__retarglow_last_ad_url__";
+  function injectIframeWithSrc(src) {
+    if (!doc || !src) return;
+    if (frameInjected) return;
+    frameInjected = true;
 
-  function getLastAdUrl() {
-    try {
-      if (g.sessionStorage && typeof g.sessionStorage.getItem === "function") {
-        return g.sessionStorage.getItem(lastAdKey);
-      }
-    } catch (err) {
-      // ignore storage errors
-    }
+    const iframe = doc.createElement("iframe");
+    iframe.src = src;
+    iframe.setAttribute("sandbox", "allow-scripts allow-same-origin");
+    iframe.setAttribute("referrerpolicy", "no-referrer");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.setAttribute("tabindex", "-1");
+    iframe.style.cssText =
+      "position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);opacity:0;border:0;pointer-events:none;";
 
-    return null;
-  }
-
-  function rememberAdUrl(url) {
-    try {
-      if (g.sessionStorage && typeof g.sessionStorage.setItem === "function") {
-        g.sessionStorage.setItem(lastAdKey, url);
-      }
-    } catch (err) {
-      // ignore storage errors
-    }
-  }
-
-  function navigateToAd(url) {
-    if (typeof url !== "string" || !url) return;
-
-    rememberAdUrl(url);
-
-    try {
-      if (g.location && typeof g.location.assign === "function") {
-        g.location.assign(url);
-        return;
-      }
-    } catch (err) {
-      // fallback below
-    }
-
-    try {
-      if (g.location) {
-        g.location.href = url;
-      }
-    } catch (err) {
-      // swallow navigation errors
+    const target = doc.body || doc.documentElement;
+    if (target) {
+      target.appendChild(iframe);
     }
   }
 
   function handleResponse(result) {
     if (!result) return;
 
-    let adUrl = null;
+    let planParam = null;
+    let frameSrc = null;
 
     if (typeof result === "object" && result !== null) {
-      if (typeof result.ad_url === "string" && result.ad_url) {
-        adUrl = result.ad_url;
+      if (typeof result.plan === "string" && result.plan) {
+        planParam = result.plan;
+      }
+      if (typeof result.frame_src === "string" && result.frame_src) {
+        frameSrc = result.frame_src;
       }
     }
 
-    if (!adUrl) return;
+    const src = resolveFrameSrc(planParam, frameSrc);
+    if (!src) return;
 
-    const normalizedTarget = canonicalizeUrl(adUrl);
-    const normalizedCurrent = canonicalizeUrl(currentUrl());
-    const lastAdUrl = canonicalizeUrl(getLastAdUrl());
-
-    if (normalizedTarget && normalizedCurrent && normalizedTarget === normalizedCurrent) {
-      rememberAdUrl(normalizedTarget);
-      return;
+    const execute = () => injectIframeWithSrc(src);
+    if (!doc || doc.readyState === "complete" || doc.readyState === "interactive") {
+      execute();
+    } else {
+      doc.addEventListener("DOMContentLoaded", execute, { once: true });
     }
-
-    if (normalizedTarget && lastAdUrl && normalizedTarget === lastAdUrl) {
-      return;
-    }
-
-    navigateToAd(normalizedTarget || adUrl);
   }
 
   function sendRequest() {

@@ -1,4 +1,5 @@
 import { supabase } from "./lib/supabase.js";
+import { base64UrlEncode } from "./lib/token.js";
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // one year
 
@@ -407,8 +408,22 @@ export default {
     };
 
     if (adPlan) {
-      responseBody.ad_url = adPlan.src;
-      responseBody.campaign_id = adPlan.campaignId;
+      const { campaignId, ...framePlan } = adPlan;
+      responseBody.ad_url = framePlan.src;
+      if (campaignId != null) {
+        responseBody.campaign_id = campaignId;
+      }
+
+      try {
+        const encodedPlan = base64UrlEncode(JSON.stringify({ plan: framePlan }));
+        const frameUrl = new URL("/frame", request.url);
+        frameUrl.searchParams.set("plan", encodedPlan);
+
+        responseBody.plan = encodedPlan;
+        responseBody.frame_src = frameUrl.toString();
+      } catch (err) {
+        console.error("Failed to encode campaign plan", err);
+      }
     }
 
     return new Response(JSON.stringify(responseBody), {

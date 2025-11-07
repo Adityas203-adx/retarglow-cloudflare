@@ -5,6 +5,7 @@ const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // one year
 const TOKEN_TTL_SECONDS = 60 * 5; // five minutes
 const CAMPAIGN_CACHE_TTL_MS = 60 * 1000;
 const CLICK_ID_PARAMS = ["irclickid", "gclid", "msclkid", "fbclid", "ttclid", "yclid"];
+const CLICK_ID_PLACEHOLDER = /\{\{\s*irclickid\s*\}\}/gi;
 
 let cachedCampaigns = null;
 let cachedCampaignExpiry = 0;
@@ -276,6 +277,53 @@ function generateRetargetId() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 
+function generateClickId(retargetId) {
+  let randomSegment;
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const bytes = new Uint8Array(12);
+    crypto.getRandomValues(bytes);
+    randomSegment = base64UrlEncode(bytes);
+  } else {
+    randomSegment = base64UrlEncode(`${Math.random()}${Date.now()}`);
+  }
+
+  const timestampSegment = Date.now().toString(36);
+  const normalizedRetargetId =
+    typeof retargetId === "string" && retargetId
+      ? retargetId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 16)
+      : null;
+
+  return [normalizedRetargetId, timestampSegment, randomSegment]
+    .filter(Boolean)
+    .join(".");
+}
+
+function ensureClickIdInAdUrl(adUrl, retargetId) {
+  if (typeof adUrl !== "string" || adUrl.trim() === "") {
+    return { url: null, clickId: null };
+  }
+
+  const trimmed = adUrl.trim();
+  const clickId = generateClickId(retargetId);
+  let withPlaceholder = trimmed.replace(CLICK_ID_PLACEHOLDER, encodeURIComponent(clickId));
+
+  try {
+    const parsed = new URL(withPlaceholder);
+    parsed.searchParams.set("irclickid", clickId);
+    return { url: parsed.toString(), clickId };
+  } catch (err) {
+    // Fallback for non-absolute URLs or strings new URL cannot parse.
+  }
+
+  const separator = withPlaceholder.includes("?")
+    ? withPlaceholder.endsWith("?") || withPlaceholder.endsWith("&")
+      ? ""
+      : "&"
+    : "?";
+  const appended = `${withPlaceholder}${separator}irclickid=${encodeURIComponent(clickId)}`;
+  return { url: appended, clickId };
+}
+
 function inferDeviceType(ua = "") {
   return /mobile|android|iphone|ipad|ipod/i.test(ua) ? "Mobile" : "Desktop";
 }
@@ -426,10 +474,15 @@ async function selectAdPlan({ pageUrl = "", retargetId, supabase }) {
       if (!domainMatched) continue;
     }
 
-    const adUrl = typeof row.ad_url === "string"
-      ? row.ad_url.replace("{{_r}}", encodeURIComponent(retargetId))
-      : null;
+    let adUrl = typeof row.ad_url === "string" ? row.ad_url : null;
     if (!adUrl) continue;
+
+    if (retargetId) {
+      adUrl = adUrl.replace(/\{\{\s*_r\s*\}\}/gi, encodeURIComponent(retargetId));
+    }
+
+    const { url: normalizedAdUrl, clickId } = ensureClickIdInAdUrl(adUrl, retargetId);
+    if (!normalizedAdUrl) continue;
 
     let campaignId = null;
     if (row?.id != null) {
@@ -442,7 +495,8 @@ async function selectAdPlan({ pageUrl = "", retargetId, supabase }) {
 
     return {
       campaignId,
-      src: adUrl,
+      src: normalizedAdUrl,
+      clickId,
       width: normalizeDimension(row.iframe_width),
       height: normalizeDimension(row.iframe_height),
       style:
@@ -518,6 +572,24 @@ function extractLastClick({ pageUrl, referer }) {
     source: utmSource || (ref?.hostname || null),
     medium: utmMedium,
     campaign: utmCampaign,
+    ts: Date.now()
+  };
+}
+
+function buildAdPlanLastClick(adPlan) {
+  if (!adPlan || typeof adPlan.clickId !== "string" || !adPlan.clickId) {
+    return null;
+  }
+
+  const parsed = tryParseUrl(adPlan.src);
+  const hostname = parsed?.hostname || null;
+
+  return {
+    id: adPlan.clickId,
+    key: "irclickid",
+    source: hostname,
+    medium: "retargeting",
+    campaign: adPlan.campaignId || null,
     ts: Date.now()
   };
 }
@@ -646,10 +718,20 @@ export default {
     const refererHeader = request.headers.get("referer") || primaryEvent?.referrer || null;
     const lastClickCandidate = extractLastClick({ pageUrl, referer: refererHeader });
     const existingLastClick = decodeLastClick(cookies["lc"]);
-    const shouldSetLastClick = shouldReplaceLastClick(existingLastClick, lastClickCandidate);
-    const activeLastClick = shouldSetLastClick ? lastClickCandidate : existingLastClick;
 
     const adPlan = await selectAdPlan({ pageUrl, retargetId, supabase });
+    const adPlanLastClick = buildAdPlanLastClick(adPlan);
+
+    let activeLastClick = existingLastClick;
+    let lastClickToPersist = null;
+
+    if (adPlanLastClick) {
+      activeLastClick = adPlanLastClick;
+      lastClickToPersist = adPlanLastClick;
+    } else if (shouldReplaceLastClick(existingLastClick, lastClickCandidate)) {
+      activeLastClick = lastClickCandidate;
+      lastClickToPersist = lastClickCandidate;
+    }
 
     const logPromise = logVisit({
       supabase,
@@ -693,8 +775,8 @@ export default {
       })
     );
 
-    if (activeLastClick && shouldSetLastClick) {
-      const encoded = encodeLastClickCookie(activeLastClick);
+    if (lastClickToPersist) {
+      const encoded = encodeLastClickCookie(lastClickToPersist);
       if (encoded) {
         headers.append(
           "Set-Cookie",
@@ -747,7 +829,8 @@ export default {
         id: activeLastClick.id,
         source: activeLastClick.source,
         medium: activeLastClick.medium,
-        campaign: activeLastClick.campaign
+        campaign: activeLastClick.campaign,
+        key: activeLastClick.key
       };
     }
 

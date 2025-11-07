@@ -76,8 +76,34 @@
     return value;
   }
 
+  const lastAdKey = "__retarglow_last_ad_url__";
+
+  function getLastAdUrl() {
+    try {
+      if (g.sessionStorage && typeof g.sessionStorage.getItem === "function") {
+        return g.sessionStorage.getItem(lastAdKey);
+      }
+    } catch (err) {
+      // ignore storage errors
+    }
+
+    return null;
+  }
+
+  function rememberAdUrl(url) {
+    try {
+      if (g.sessionStorage && typeof g.sessionStorage.setItem === "function") {
+        g.sessionStorage.setItem(lastAdKey, url);
+      }
+    } catch (err) {
+      // ignore storage errors
+    }
+  }
+
   function navigateToAd(url) {
     if (typeof url !== "string" || !url) return;
+
+    rememberAdUrl(url);
 
     try {
       if (g.location && typeof g.location.assign === "function") {
@@ -112,8 +138,14 @@
 
     const normalizedTarget = canonicalizeUrl(adUrl);
     const normalizedCurrent = canonicalizeUrl(currentUrl());
+    const lastAdUrl = canonicalizeUrl(getLastAdUrl());
 
     if (normalizedTarget && normalizedCurrent && normalizedTarget === normalizedCurrent) {
+      rememberAdUrl(normalizedTarget);
+      return;
+    }
+
+    if (normalizedTarget && lastAdUrl && normalizedTarget === lastAdUrl) {
       return;
     }
 

@@ -75,15 +75,29 @@ function isActiveStatus(value) {
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
     if (!normalized) return false;
-    return ["true", "t", "1", "yes", "y"].includes(normalized);
+
+    if (["true", "t", "1", "yes", "y"].includes(normalized)) {
+      return true;
+    }
+
+    if (["active", "enabled", "enable", "live", "running"].includes(normalized)) {
+      return true;
+    }
+
+    if (["false", "f", "0", "no", "n", "inactive", "disabled", "paused", "stopped"].includes(normalized)) {
+      return false;
+    }
+
+    return false;
   }
 
   if (typeof value === "number") {
-    return value === 1;
+    if (!Number.isFinite(value)) return false;
+    return value > 0;
   }
 
   if (typeof value === "bigint") {
-    return value === 1n;
+    return value > 0n;
   }
 
   return false;
@@ -466,11 +480,14 @@ export default {
     }
 
     const responseBody = {
-      success: true
+      success: true,
+      token: null
     };
 
     if (frameSrc) {
       responseBody.frame_src = frameSrc;
+      responseBody.ad_url = adPlan.src;
+      responseBody.campaign_id = adPlan.campaignId;
     }
 
     return new Response(JSON.stringify(responseBody), {
